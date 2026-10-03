@@ -1,5 +1,7 @@
 # Gmail AutoClassifier
 
+[![CI](https://github.com/180Gio/gmail-autoclassifier/actions/workflows/ci.yml/badge.svg)](https://github.com/180Gio/gmail-autoclassifier/actions/workflows/ci.yml)
+
 An AI-assisted Gmail organizer that turns the senders in your mailbox into
 **labels and Gmail filters** — always behind a manual review step.
 
