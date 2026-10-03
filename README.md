@@ -327,6 +327,10 @@ src/
 > On WSL with the project stored on a Windows drive (`/mnt/c`, `/mnt/d`), the
 > first startup of `tsx watch` can be slow because of filesystem scanning. For
 > better performance, keep the repository on the Linux filesystem (`~/...`).
+>
+> `npm run dev` starts Vite only after the API answers `/api/health`, and the web
+> UI keeps retrying while the API boots, so a slow first start shows a
+> "Starting the API…" notice instead of connection errors.
 
 ## Roadmap
 

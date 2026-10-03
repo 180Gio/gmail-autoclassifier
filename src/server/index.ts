@@ -50,7 +50,19 @@ app.use(errorHandler)
 
 getDb()
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   const mode = IS_PROD ? 'production' : 'development'
   console.log(`Gmail AutoClassifier API listening on http://localhost:${PORT} (${mode})`)
+})
+
+server.on('error', (error: NodeJS.ErrnoException) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(
+      `\nPort ${PORT} is already in use — another instance is probably still running.\n` +
+        `Stop it, or set a different PORT in .env.\n`,
+    )
+  } else {
+    console.error(error)
+  }
+  process.exit(1)
 })

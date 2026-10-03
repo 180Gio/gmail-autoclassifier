@@ -29,6 +29,25 @@ function bool(settings: SettingView[], key: string, fallback = false): boolean {
   return value === null || value === undefined ? fallback : value === 'true'
 }
 
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+/**
+ * The API can take a while to boot, especially on WSL with the repository on a
+ * Windows drive. Retry on network errors instead of showing a failure; real
+ * server errors are surfaced immediately.
+ */
+async function waitForApi(attempts = 30, intervalMs = 1000): Promise<StatusResponse | null> {
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      return await Api.status()
+    } catch (err) {
+      if (!(err instanceof TypeError)) throw err
+      await delay(intervalMs)
+    }
+  }
+  return null
+}
+
 export function App() {
   const { theme, toggle } = useTheme()
   const [tab, setTab] = useState<Tab>('connect')
@@ -40,17 +59,7 @@ export function App() {
   const [activeScanId, setActiveScanId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-
-  const refreshStatus = useCallback(async () => {
-    try {
-      const s = await Api.status()
-      setStatus(s)
-      return s
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-      return null
-    }
-  }, [])
+  const [booting, setBooting] = useState(true)
 
   const refreshAccountData = useCallback(async () => {
     try {
@@ -81,12 +90,23 @@ export function App() {
       if (authError) setError(`Google authorization failed: ${authError}`)
       if (connected || authError) window.history.replaceState({}, '', window.location.pathname)
 
-      const s = await refreshStatus()
-      const settingsRes = await Api.settings().catch(() => null)
-      if (settingsRes) setSettings(settingsRes.settings)
-      if (s?.connected) await refreshAccountData()
+      try {
+        const s = await waitForApi()
+        if (!s) {
+          setError('Could not reach the API. Make sure the backend is running (npm run dev).')
+          return
+        }
+        setStatus(s)
+        const settingsRes = await Api.settings().catch(() => null)
+        if (settingsRes) setSettings(settingsRes.settings)
+        if (s.connected) await refreshAccountData()
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err))
+      } finally {
+        setBooting(false)
+      }
     })()
-  }, [refreshStatus, refreshAccountData])
+  }, [refreshAccountData])
 
   const connect = () => {
     window.location.href = Api.connectUrl
@@ -181,6 +201,12 @@ export function App() {
       </header>
 
       <main className="mx-auto max-w-6xl space-y-5 px-6 py-6">
+        {booting && (
+          <div className="glass flex items-center gap-3 px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-600 dark:border-slate-600 dark:border-t-indigo-400" />
+            Starting the API… on the first launch this can take a few seconds.
+          </div>
+        )}
         <ErrorBanner error={error} />
         <SuccessBanner message={notice} />
 

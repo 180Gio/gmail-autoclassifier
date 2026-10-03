@@ -6,7 +6,7 @@
   "description": "AI-powered Gmail auto-classifier: turns senders into labels and Gmail filters, after a human-reviewed preview.",
   "license": "MIT",
   "scripts": {
-    "dev": "concurrently -n api,web -c blue,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev": "concurrently -k -n api,web -c blue,magenta \"npm:dev:api\" \"wait-on -t 180000 http://localhost:8787/api/health && npm run dev:web\"",
     "dev:api": "tsx watch src/server/index.ts",
     "dev:web": "vite",
     "start": "tsx src/server/index.ts",
@@ -32,6 +32,7 @@
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vite": "^8.3.2"
+    "vite": "^8.3.2",
+    "wait-on": "^9.5.1"
   }
 }
