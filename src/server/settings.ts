@@ -47,8 +47,8 @@ export const SETTING_DEFINITIONS: SettingDefInternal[] = [
     env: 'OPENCODE_TOKEN',
     group: 'ai',
     type: 'secret',
-    label: 'OpenCode token',
-    help: 'Optional bearer token if your OpenCode server requires authentication.',
+    label: 'API key / Bearer token',
+    help: 'Sent as "Authorization: Bearer <token>" to the OpenCode server. Only needed for a remote, shared or hosted OpenCode endpoint that requires authentication.',
   },
   {
     key: 'ai.openai.baseUrl',

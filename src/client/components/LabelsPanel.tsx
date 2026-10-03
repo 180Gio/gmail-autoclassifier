@@ -53,16 +53,22 @@ export function LabelsPanel({ labels, onChange }: { labels: Label[]; onChange: (
           </Button>
         }
       >
-        <p className="mb-4 text-xs text-slate-500">
+        <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
           Write a short description of what belongs in each label. The AI uses these descriptions to
           decide where each sender goes.
         </p>
         <div className="space-y-5">
           {userLabels.length === 0 && (
-            <p className="text-sm text-slate-400">No user labels yet. Create one below or sync from Gmail.</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">
+              No user labels yet. Create one below or sync from Gmail.
+            </p>
           )}
           {userLabels.map((label) => (
-            <LabelEditor key={label.id} label={label} onSaved={(l) => onChange(labels.map((x) => (x.id === l.id ? l : x)))} />
+            <LabelEditor
+              key={label.id}
+              label={label}
+              onSaved={(l) => onChange(labels.map((x) => (x.id === l.id ? l : x)))}
+            />
           ))}
         </div>
       </Card>
@@ -115,9 +121,9 @@ function LabelEditor({ label, onSaved }: { label: Label; onSaved: (label: Label)
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 p-3">
+    <div className="rounded-xl border border-slate-200/70 bg-white/40 p-3 dark:border-white/10 dark:bg-white/5">
       <div className="mb-2 flex items-center gap-2">
-        <span className="text-sm font-medium text-slate-800">{label.name}</span>
+        <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{label.name}</span>
         {label.createdByApp && <Badge tone="indigo">created by app</Badge>}
         {label.gmailId && <Badge tone="green">in Gmail</Badge>}
       </div>
@@ -131,7 +137,7 @@ function LabelEditor({ label, onSaved }: { label: Label; onSaved: (label: Label)
           Save
         </Button>
       </div>
-      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      {error && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
     </div>
   )
 }

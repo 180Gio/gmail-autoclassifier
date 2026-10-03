@@ -94,7 +94,9 @@ export function ReviewPanel({
   if (!scanId) {
     return (
       <Card title="Review">
-        <p className="text-sm text-slate-400">Run a scan first, then open it to classify senders.</p>
+        <p className="text-sm text-slate-400 dark:text-slate-500">
+          Run a scan first, then open it to classify senders.
+        </p>
       </Card>
     )
   }
@@ -109,7 +111,7 @@ export function ReviewPanel({
       <Card
         title={`Scan #${scanId} · ${items.length} senders`}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button onClick={classify} disabled={busy}>
               {busy ? <Spinner /> : null} Run AI classification
             </Button>
@@ -145,7 +147,7 @@ export function ReviewPanel({
       </Card>
 
       <Card title="Apply to Gmail">
-        <p className="mb-4 text-xs text-slate-500">
+        <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
           Creates Gmail filters for every accepted sender and adds the selected labels. Existing mail is
           only changed if you enable the backfill below.
         </p>
@@ -175,14 +177,16 @@ export function ReviewPanel({
           <Button variant="primary" onClick={apply} disabled={busy || accepted === 0}>
             Apply {accepted} sender(s)
           </Button>
-          {applyResult && <span className="text-sm text-emerald-700">{applyResult}</span>}
+          {applyResult && (
+            <span className="text-sm text-emerald-700 dark:text-emerald-300">{applyResult}</span>
+          )}
           {applyResult && (
             <Button variant="ghost" onClick={onGoToRules}>
               View rules →
             </Button>
           )}
         </div>
-        <p className="mt-3 text-xs text-amber-600">
+        <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
           Note: Gmail filters only affect future messages unless backfill is enabled.
         </p>
       </Card>
@@ -212,13 +216,13 @@ function ReviewRow({
         ? 'red'
         : 'amber'
   return (
-    <div className="rounded-lg border border-slate-200 p-3">
+    <div className="rounded-xl border border-slate-200/70 bg-white/40 p-3 dark:border-white/10 dark:bg-white/5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <div className="truncate text-sm font-medium text-slate-800">
+          <div className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">
             {row.sender?.displayName ?? row.senderEmail}
           </div>
-          <div className="truncate text-xs text-slate-400">
+          <div className="truncate text-xs text-slate-400 dark:text-slate-500">
             {row.senderEmail} · {row.sender?.messageCount ?? 0} messages
             {row.confidence != null && ` · confidence ${(row.confidence * 100).toFixed(0)}%`}
           </div>
@@ -234,7 +238,9 @@ function ReviewRow({
         </div>
       </div>
 
-      {row.rationale && <p className="mt-2 text-xs italic text-slate-400">{row.rationale}</p>}
+      {row.rationale && (
+        <p className="mt-2 text-xs italic text-slate-400 dark:text-slate-500">{row.rationale}</p>
+      )}
 
       <div className="mt-2 flex flex-wrap gap-2">
         {allLabels.map((label) => {
@@ -246,8 +252,8 @@ function ReviewRow({
               disabled={busy}
               className={`rounded-full border px-2.5 py-0.5 text-xs transition ${
                 active
-                  ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                  : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                  ? 'border-indigo-500 bg-indigo-500/15 text-indigo-700 dark:text-indigo-300'
+                  : 'border-slate-300 text-slate-500 hover:border-slate-400 dark:border-white/15 dark:text-slate-400 dark:hover:border-white/30'
               }`}
             >
               {active ? '✓ ' : '+ '}
@@ -256,7 +262,7 @@ function ReviewRow({
           )
         })}
         {allLabels.length === 0 && (
-          <span className="text-xs text-slate-400">No user labels available.</span>
+          <span className="text-xs text-slate-400 dark:text-slate-500">No user labels available.</span>
         )}
       </div>
     </div>

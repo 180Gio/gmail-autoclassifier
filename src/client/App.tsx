@@ -6,7 +6,8 @@ import { ReviewPanel } from './components/ReviewPanel.tsx'
 import { RulesPanel } from './components/RulesPanel.tsx'
 import { ScanPanel } from './components/ScanPanel.tsx'
 import { SettingsPanel } from './components/SettingsPanel.tsx'
-import { Badge, Button, Card, ErrorBanner, SuccessBanner } from './components/ui.tsx'
+import { Badge, Button, Card, ErrorBanner, SuccessBanner, ThemeToggle } from './components/ui.tsx'
+import { useTheme } from './useTheme.ts'
 
 type Tab = 'connect' | 'labels' | 'scan' | 'review' | 'rules' | 'settings'
 
@@ -29,6 +30,7 @@ function bool(settings: SettingView[], key: string, fallback = false): boolean {
 }
 
 export function App() {
+  const { theme, toggle } = useTheme()
   const [tab, setTab] = useState<Tab>('connect')
   const [status, setStatus] = useState<StatusResponse | null>(null)
   const [settings, setSettings] = useState<SettingView[]>([])
@@ -119,13 +121,23 @@ export function App() {
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-slate-200 bg-white">
+      <header className="glass-bar sticky top-0 z-20 border-b">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-4">
-          <div>
-            <h1 className="text-lg font-semibold text-slate-900">Gmail AutoClassifier</h1>
-            <p className="text-xs text-slate-500">
-              AI-assisted labels and Gmail filters, always with a manual review step.
-            </p>
+          <div className="flex items-center gap-3">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-sky-500 text-white shadow-lg shadow-indigo-500/30">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <path d="m22 7-10 6L2 7" />
+              </svg>
+            </span>
+            <div>
+              <h1 className="bg-gradient-to-r from-indigo-600 to-sky-500 bg-clip-text text-lg font-semibold text-transparent dark:from-indigo-400 dark:to-sky-300">
+                Gmail AutoClassifier
+              </h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                AI-assisted labels and Gmail filters, always with a manual review step.
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {status && (
@@ -135,11 +147,10 @@ export function App() {
                 ) : (
                   <Badge tone="amber">not connected</Badge>
                 )}
-                <Badge tone={status.providerReady ? 'indigo' : 'red'}>
-                  AI: {status.providerLabel}
-                </Badge>
+                <Badge tone={status.providerReady ? 'indigo' : 'red'}>AI: {status.providerLabel}</Badge>
               </>
             )}
+            <ThemeToggle theme={theme} onToggle={toggle} />
             {connected && (
               <Button variant="ghost" onClick={disconnect}>
                 Disconnect
@@ -147,18 +158,19 @@ export function App() {
             )}
           </div>
         </div>
-        <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4">
+        <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 pb-3">
           {TABS.map((item) => {
             const disabled = item.needsAccount && !connected
+            const active = tab === item.id
             return (
               <button
                 key={item.id}
                 onClick={() => !disabled && setTab(item.id)}
                 disabled={disabled}
-                className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition ${
-                  tab === item.id
-                    ? 'border-indigo-600 text-indigo-700'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
+                  active
+                    ? 'bg-slate-900 text-white shadow dark:bg-white dark:text-slate-900'
+                    : 'text-slate-600 hover:bg-slate-900/5 dark:text-slate-300 dark:hover:bg-white/10'
                 } ${disabled ? 'cursor-not-allowed opacity-40' : ''}`}
               >
                 {item.label}
@@ -204,7 +216,7 @@ export function App() {
         {tab === 'settings' && <SettingsPanel settings={settings} onSaved={setSettings} />}
       </main>
 
-      <footer className="mx-auto max-w-6xl px-6 pb-10 text-xs text-slate-400">
+      <footer className="mx-auto max-w-6xl px-6 pb-10 text-xs text-slate-400 dark:text-slate-500">
         Runs locally. Secrets and tokens are stored encrypted in <code>data/app.sqlite</code>.
       </footer>
     </div>
@@ -227,7 +239,7 @@ function ConnectPanel({
   return (
     <div className="grid gap-5 md:grid-cols-2">
       <Card title="1 · Connect Gmail">
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-slate-600 dark:text-slate-300">
           Authorize read/modify access, label management and Gmail filter creation. This app never sends
           email on your behalf.
         </p>
@@ -235,7 +247,7 @@ function ConnectPanel({
           {status?.connected ? (
             <>
               <Badge tone="green">Connected as {status.account?.email}</Badge>
-              <div className="flex gap-2 text-sm text-slate-500">
+              <div className="flex gap-2 text-sm text-slate-500 dark:text-slate-400">
                 <span>{labelsCount} labels</span>
                 <span>·</span>
                 <span>{rulesCount} active filters</span>
@@ -247,7 +259,7 @@ function ConnectPanel({
             </Button>
           ) : (
             <>
-              <p className="text-sm text-amber-600">
+              <p className="text-sm text-amber-600 dark:text-amber-400">
                 Google OAuth is not configured yet. Add your Client ID and Secret first.
               </p>
               <Button variant="primary" onClick={onGoSettings}>
@@ -259,13 +271,13 @@ function ConnectPanel({
       </Card>
 
       <Card title="How it works">
-        <ol className="list-decimal space-y-2 pl-5 text-sm text-slate-600">
+        <ol className="list-decimal space-y-2 pl-5 text-sm text-slate-600 dark:text-slate-300">
           <li>Create labels and describe what belongs in each one.</li>
           <li>Run a scan to collect the senders in your mailbox.</li>
           <li>The AI suggests a label for each sender.</li>
           <li>Review and adjust, then apply to create Gmail filters.</li>
         </ol>
-        <p className="mt-4 text-xs text-slate-400">
+        <p className="mt-4 text-xs text-slate-400 dark:text-slate-500">
           The selected AI provider is <strong>{status?.providerLabel ?? '...'}</strong>. Configure or
           change it in Settings.
         </p>

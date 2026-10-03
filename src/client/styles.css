@@ -1,9 +1,50 @@
 @import "tailwindcss";
 
+/* Class-based dark mode: toggled by adding `.dark` to <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   color-scheme: light;
 }
+html.dark {
+  color-scheme: dark;
+}
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  min-height: 100vh;
+  @apply text-slate-800 antialiased dark:text-slate-100;
+  background-color: #f5f6fb;
+  background-image:
+    radial-gradient(900px 520px at 6% -12%, rgba(99, 102, 241, 0.22), transparent 60%),
+    radial-gradient(820px 460px at 100% -4%, rgba(14, 165, 233, 0.18), transparent 55%);
+  background-attachment: fixed;
+}
+
+html.dark body {
+  background-color: #060913;
+  background-image:
+    radial-gradient(900px 520px at 6% -12%, rgba(99, 102, 241, 0.34), transparent 60%),
+    radial-gradient(820px 460px at 100% -4%, rgba(56, 189, 248, 0.22), transparent 55%);
+}
+
+@layer components {
+  .glass {
+    @apply rounded-2xl border border-white/60 bg-white/70 shadow-xl shadow-slate-900/5 backdrop-blur-xl
+      dark:border-white/10 dark:bg-slate-900/45 dark:shadow-black/40;
+  }
+
+  .glass-bar {
+    @apply border-white/50 bg-white/70 backdrop-blur-xl
+      dark:border-white/10 dark:bg-slate-950/50;
+  }
+
+  .divider {
+    @apply border-slate-200/70 dark:border-white/10;
+  }
+}
+
+/* Keep native selects readable in dark mode. */
+html.dark select option {
+  color: #e2e8f0;
+  background-color: #0f172a;
 }

@@ -18,6 +18,14 @@ const GROUP_HINTS: Record<string, string> = {
   filters: 'Default actions proposed when you apply filters. You can still override them per apply.',
 }
 
+const PROVIDER_NOTES: Record<string, string> = {
+  opencode:
+    'Talks to a running OpenCode server. The model provider keys (Anthropic, OpenAI, …) live in OpenCode itself; the API key here only authenticates against the OpenCode endpoint.',
+  openai:
+    'Any OpenAI-compatible endpoint, including local servers such as Ollama (http://localhost:11434/v1) where the API key can be left empty.',
+  mock: 'Offline provider using a local keyword heuristic. For testing the flow only — no API key needed.',
+}
+
 export function SettingsPanel({
   settings,
   onSaved,
@@ -42,8 +50,25 @@ export function SettingsPanel({
     setSecrets({})
   }, [settings])
 
+  const selectedProvider = draft['ai.provider'] ?? 'opencode'
+
   function value(key: string): string {
     return draft[key] ?? ''
+  }
+
+  /** Only the selected provider's fields are shown. */
+  function isVisible(setting: SettingView): boolean {
+    if (setting.group !== 'ai') return true
+    if (setting.key === 'ai.provider') return true
+    return setting.key.startsWith(`ai.${selectedProvider}.`)
+  }
+
+  function buildPatch(): Record<string, unknown> {
+    const patch: Record<string, unknown> = { ...draft }
+    for (const [key, val] of Object.entries(secrets)) {
+      if (val) patch[key] = val
+    }
+    return patch
   }
 
   async function save() {
@@ -51,11 +76,7 @@ export function SettingsPanel({
     setError(null)
     setSuccess(null)
     try {
-      const patch: Record<string, unknown> = { ...draft }
-      for (const [key, val] of Object.entries(secrets)) {
-        if (val) patch[key] = val
-      }
-      const res = await Api.saveSettings(patch)
+      const res = await Api.saveSettings(buildPatch())
       onSaved(res.settings)
       setSecrets({})
       setSuccess('Settings saved.')
@@ -66,12 +87,17 @@ export function SettingsPanel({
     }
   }
 
-  async function test() {
+  async function saveAndTest() {
     setTesting(true)
     setTestResult(null)
+    setError(null)
     try {
-      const res = await Api.testAi()
-      setTestResult(`✅ ${res.provider} replied: "${res.text ?? ''}"`)
+      // Persist first so the test uses exactly what is shown in the form.
+      const res = await Api.saveSettings(buildPatch())
+      onSaved(res.settings)
+      setSecrets({})
+      const test = await Api.testAi()
+      setTestResult(`✅ ${test.provider} replied: "${test.text ?? ''}"`)
     } catch (err) {
       setTestResult(`❌ ${err instanceof Error ? err.message : String(err)}`)
     } finally {
@@ -86,11 +112,11 @@ export function SettingsPanel({
       <SuccessBanner message={success} />
 
       {groups.map((group) => {
-        const items = settings.filter((s) => s.group === group)
+        const items = settings.filter((s) => s.group === group && isVisible(s))
         if (items.length === 0) return null
         return (
           <Card key={group} title={GROUP_TITLES[group] ?? group}>
-            <p className="mb-4 text-xs text-slate-500">{GROUP_HINTS[group]}</p>
+            <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">{GROUP_HINTS[group]}</p>
             <div className="grid gap-4 md:grid-cols-2">
               {items.map((setting) => (
                 <SettingField
@@ -103,6 +129,11 @@ export function SettingsPanel({
                 />
               ))}
             </div>
+            {group === 'ai' && (
+              <p className="mt-4 rounded-lg bg-indigo-500/10 px-3 py-2 text-xs text-indigo-700 dark:text-indigo-300">
+                {PROVIDER_NOTES[selectedProvider] ?? ''}
+              </p>
+            )}
           </Card>
         )
       })}
@@ -111,10 +142,10 @@ export function SettingsPanel({
         <Button variant="primary" onClick={save} disabled={busy}>
           Save settings
         </Button>
-        <Button onClick={test} disabled={testing}>
-          Test AI provider
+        <Button onClick={saveAndTest} disabled={testing || busy}>
+          {testing ? 'Testing…' : 'Save & test AI provider'}
         </Button>
-        {testResult && <span className="text-sm text-slate-600">{testResult}</span>}
+        {testResult && <span className="text-sm text-slate-600 dark:text-slate-300">{testResult}</span>}
       </div>
     </div>
   )

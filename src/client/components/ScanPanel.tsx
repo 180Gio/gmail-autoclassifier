@@ -69,7 +69,7 @@ export function ScanPanel({
       <ErrorBanner error={error} />
 
       <Card title="New scan">
-        <p className="mb-4 text-xs text-slate-500">
+        <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
           Scans your messages, extracts the senders and their sample subjects. Nothing is written to Gmail.
         </p>
         <div className="grid gap-4 md:grid-cols-3">
@@ -98,14 +98,14 @@ export function ScanPanel({
 
       {active && (
         <Card title={`Scan #${active.id}`}>
-          <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
+          <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600 dark:text-slate-300">
             <StatusBadge status={active.status} />
             <span>
               {active.messagesFetched} messages processed · {active.sendersFound} senders found
             </span>
             {active.status === 'running' && <Spinner />}
           </div>
-          {active.error && <p className="mt-2 text-sm text-red-600">{active.error}</p>}
+          {active.error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{active.error}</p>}
           {active.status === 'done' && (
             <div className="mt-4">
               <Button variant="primary" onClick={onGoToReview}>
@@ -117,17 +117,21 @@ export function ScanPanel({
       )}
 
       <Card title="History">
-        <div className="divide-y divide-slate-100">
-          {scans.length === 0 && <p className="text-sm text-slate-400">No scans yet.</p>}
+        <div className="divide-y divide-slate-200/70 dark:divide-white/10">
+          {scans.length === 0 && (
+            <p className="text-sm text-slate-400 dark:text-slate-500">No scans yet.</p>
+          )}
           {scans.map((scan) => (
             <div key={scan.id} className="flex items-center justify-between gap-4 py-2">
               <div className="flex items-center gap-3 text-sm">
                 <StatusBadge status={scan.status} />
-                <span className="text-slate-700">#{scan.id}</span>
-                <span className="text-slate-400">
+                <span className="text-slate-700 dark:text-slate-200">#{scan.id}</span>
+                <span className="text-slate-400 dark:text-slate-500">
                   last {scan.months}m · {scan.maxMessages} max
                 </span>
-                <span className="text-slate-400">{scan.startedAt.slice(0, 16).replace('T', ' ')}</span>
+                <span className="text-slate-400 dark:text-slate-500">
+                  {scan.startedAt.slice(0, 16).replace('T', ' ')}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <Badge>{scan.sendersFound} senders</Badge>

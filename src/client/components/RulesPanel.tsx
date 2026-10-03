@@ -26,7 +26,7 @@ export function RulesPanel({ rules, onChange }: { rules: Rule[]; onChange: (rule
       <ErrorBanner error={error} />
       <Card title={`Active Gmail filters (${active.length})`}>
         {active.length === 0 && (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-400 dark:text-slate-500">
             No filters created yet. Accept some senders and apply them from the Review tab.
           </p>
         )}
@@ -34,11 +34,13 @@ export function RulesPanel({ rules, onChange }: { rules: Rule[]; onChange: (rule
           {active.map((rule) => (
             <div
               key={rule.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200/70 bg-white/40 p-3 dark:border-white/10 dark:bg-white/5"
             >
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-slate-800">{rule.senderEmail}</div>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                <div className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">
+                  {rule.senderEmail}
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                   <span>→</span>
                   {rule.labelNames.map((name) => (
                     <Badge key={name} tone="indigo">
@@ -57,14 +59,14 @@ export function RulesPanel({ rules, onChange }: { rules: Rule[]; onChange: (rule
             </div>
           ))}
         </div>
-        <p className="mt-4 text-xs text-slate-400">
+        <p className="mt-4 text-xs text-slate-400 dark:text-slate-500">
           Deleting a filter removes the Gmail rule but keeps the label in your account.
         </p>
       </Card>
 
       {rules.some((r) => r.status !== 'active') && (
         <Card title="Removed filters">
-          <div className="space-y-1 text-sm text-slate-400">
+          <div className="space-y-1 text-sm text-slate-400 dark:text-slate-500">
             {rules
               .filter((r) => r.status !== 'active')
               .map((r) => (

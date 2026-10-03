@@ -13,6 +13,8 @@ and only writes Gmail filters after you explicitly confirm.
 > encrypted in a local SQLite file. No third-party server is involved beyond the
 > AI provider you choose.
 
+![Gmail AutoClassifier](docs/screenshot-dark.png)
+
 ---
 
 ## Table of contents
@@ -54,6 +56,8 @@ and only writes Gmail filters after you explicitly confirm.
   - never send to spam,
   - optionally apply the same changes to **existing** mail (backfill).
 - Keeps a list of the filters it created, and lets you delete them from the app.
+- Modern glass UI with light/dark mode, and a settings screen that shows only the
+  fields of the selected AI provider.
 
 ## How it works
 
