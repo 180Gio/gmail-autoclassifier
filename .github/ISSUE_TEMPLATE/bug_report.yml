@@ -1,0 +1,72 @@
+name: Bug report
+description: Report something that does not work as expected.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please search existing issues first.
+
+        ⚠️ **Do not paste secrets.** Remove OAuth tokens, API keys, and full email
+        contents before submitting.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear and concise description of the bug.
+      placeholder: Describe what went wrong.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. See error
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Gmail OAuth / connection
+        - Labels
+        - Scan
+        - AI classification
+        - Applying filters / backfill
+        - Settings / configuration
+        - UI / UX
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: AI provider
+      description: Which provider were you using?
+      placeholder: opencode / openai (model) / mock
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Node version, and whether you run via npm run dev or a build.
+      placeholder: "e.g. Ubuntu 24.04 on WSL2, Node 25.9, npm run dev"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Server console output, browser console, or error text. Redact secrets.
+      render: shell
+    validations:
+      required: false

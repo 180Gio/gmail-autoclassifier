@@ -1,0 +1,50 @@
+name: Feature request
+description: Suggest an idea or improvement.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Gmail AutoClassifier. Check the roadmap in the
+        README before opening a request.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What problem are you trying to solve? Why is the current behavior insufficient?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe what you would like to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Gmail integration
+        - AI providers
+        - Classification quality
+        - Review / apply UX
+        - Configuration
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Mockups, examples, links, or anything else that helps.
+    validations:
+      required: false
