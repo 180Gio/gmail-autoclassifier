@@ -7,6 +7,11 @@ export interface GenerateRequest {
   /** Ask the provider to return strict JSON when supported. */
   json?: boolean
   temperature?: number
+  /**
+   * Stable id for providers that route or optimize per conversation.
+   * OpenCode Go requires it as `x-opencode-session`.
+   */
+  sessionId?: string
 }
 
 export interface ModelOption {

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { Router } from 'express'
 import { getProvider } from '../ai/index.ts'
 import { getSettingsView, saveSettings } from '../settings.ts'
@@ -21,6 +22,7 @@ settingsRouter.post('/settings/test-ai', async (_req, res) => {
     const text = await provider.generate({
       prompt: 'Reply with exactly one word: ok',
       temperature: 0,
+      sessionId: randomUUID(),
     })
     res.json({ ok: true, provider: provider.label, text: text.trim().slice(0, 200) })
   } catch (error) {

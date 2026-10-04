@@ -218,7 +218,10 @@ required** — just an API key from the OpenCode Console.
   `/chat/completions`, such as `kimi-k3`, `glm-5.3` or `deepseek-v4-pro`, also work.
 
 Requests go to `https://opencode.ai/zen/go/v1/chat/completions` with
-`Authorization: Bearer <key>`. A few Go models (MiniMax, Qwen) are only served on
+`Authorization: Bearer <key>`. Go requires clients to identify themselves with
+their own user agent and to send a stable `x-opencode-session` id for routing
+and prompt caching; the app sets both automatically (one session per
+classification run). A few Go models (MiniMax, Qwen) are only served on
 the Anthropic-native `/messages` endpoint and are not supported by this provider.
 
 ### OpenAI-compatible

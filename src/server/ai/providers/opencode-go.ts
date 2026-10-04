@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { getSetting } from '../../settings.ts'
 import type { AiProvider, GenerateRequest } from '../types.ts'
 
@@ -10,19 +11,29 @@ import type { AiProvider, GenerateRequest } from '../types.ts'
  *   Auth:     Authorization: Bearer <api key>
  *   API:      POST /chat/completions  (OpenAI-compatible)
  *
+ * Go asks clients to identify themselves with their own user agent and to send
+ * a stable session id in `x-opencode-session` (used for routing and prompt
+ * caching). Both are set here.
+ *
  * Note: a few Go models (MiniMax, Qwen) are only served on the Anthropic-native
  * `/messages` endpoint and are therefore not supported by this provider.
  */
 export const OPENCODE_GO_BASE_URL = 'https://opencode.ai/zen/go/v1'
 
+const CLIENT_USER_AGENT = 'gmail-autoclassifier/0.1.0'
+
 export function opencodeGoProvider(): AiProvider {
   const apiKey = () => getSetting('ai.opencode-go.apiKey')
   const model = () => getSetting('ai.opencode-go.model') ?? 'deepseek-v4.1-flash'
 
-  function headers(): Record<string, string> {
-    const h: Record<string, string> = { 'content-type': 'application/json' }
+  function headers(sessionId?: string): Record<string, string> {
+    const h: Record<string, string> = {
+      'content-type': 'application/json',
+      'user-agent': CLIENT_USER_AGENT,
+    }
     const key = apiKey()
     if (key) h.authorization = `Bearer ${key}`
+    h['x-opencode-session'] = sessionId ?? randomUUID()
     return h
   }
 
@@ -46,7 +57,7 @@ export function opencodeGoProvider(): AiProvider {
 
       const res = await fetch(`${OPENCODE_GO_BASE_URL}/chat/completions`, {
         method: 'POST',
-        headers: headers(),
+        headers: headers(req.sessionId),
         body: JSON.stringify(body),
       })
       if (!res.ok) {

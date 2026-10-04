@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { getProvider } from './index.ts'
 import type { GenerateRequest } from './types.ts'
 
@@ -54,6 +55,10 @@ export async function classifySenders(options: ClassifyOptions): Promise<SenderC
   const known = new Map(labels.map((l) => [l.name.toLowerCase(), l.name]))
   const results: SenderClassification[] = []
 
+  // One stable session id for the whole run: better routing and prompt caching
+  // with providers like OpenCode Go, which require `x-opencode-session`.
+  const sessionId = randomUUID()
+
   for (let i = 0; i < senders.length; i += CHUNK_SIZE) {
     const chunk = senders.slice(i, i + CHUNK_SIZE)
     const req: GenerateRequest = {
@@ -61,6 +66,7 @@ export async function classifySenders(options: ClassifyOptions): Promise<SenderC
       prompt: buildPrompt(labels, chunk),
       json: true,
       temperature: 0.1,
+      sessionId,
     }
 
     let raw = await provider.generate(req)
