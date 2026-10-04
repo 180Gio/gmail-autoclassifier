@@ -48,8 +48,9 @@ and only writes Gmail filters after you explicitly confirm.
   subjects.
 - Asks an AI provider to suggest one or more labels per sender.
 - Shows a **review screen** where you accept, reject, or change every suggestion.
-- Creates Gmail labels (if missing) and **Gmail filters** for the accepted
-  senders, with configurable actions:
+- Creates Gmail labels (if missing) and **Gmail filters grouped by label** for the
+  accepted senders (one filter per label with `from: a OR b OR …`), with
+  configurable actions:
   - apply one or more labels,
   - archive (skip the inbox),
   - mark as read,
@@ -155,10 +156,12 @@ variable. `.env` only provides defaults/fallbacks.
 | Scan window (months) | `SCAN_MONTHS` | `6` | |
 | Max messages per scan | `SCAN_MAX_MESSAGES` | `2000` | |
 | Parallel Gmail requests | `SCAN_CONCURRENCY` | `4` | lower if you hit Gmail quota |
+| Gmail requests per second | `SCAN_REQUESTS_PER_SECOND` | `8` | global throttle against quota |
 | Archive classified mail | `FILTERS_ARCHIVE` | `false` | |
 | Mark as read | `FILTERS_MARK_READ` | `false` | |
 | Never send to spam | `FILTERS_NEVER_SPAM` | `true` | |
 | Apply to existing mail | `FILTERS_APPLY_EXISTING` | `false` | backfill |
+| Max senders per filter | `FILTERS_MAX_SENDERS` | `50` | one filter per label, `from: a OR b OR …` |
 
 Server-level variables (not exposed in the UI): `PORT`, `WEB_ORIGIN`,
 `DATA_DIR`, `SESSION_SECRET`. Set `SESSION_SECRET` to a long random string —
@@ -175,9 +178,10 @@ it encrypts secrets at rest. Changing it invalidates stored secrets.
    labels of each sender. You can also edit a suggestion manually; it is marked
    as manual.
 4. **Apply** — choose the filter actions and apply. The app creates missing
-   labels, creates one Gmail filter per accepted sender, and (if enabled)
-   backfills existing mail.
-5. **Rules** — inspect the filters created and delete them if needed.
+   labels, groups accepted senders by label and creates one Gmail filter per
+   label (`from: a OR b OR …`), and (if enabled) backfills existing mail.
+5. **Rules** — inspect every filter in Gmail (including ones created outside the
+   app) and delete them if needed.
 
 ## AI providers
 
@@ -296,9 +300,10 @@ and read all configuration through `getSetting(...)`.
   per sender for safety).
 - **Rate limits.** Gmail enforces a per-user quota (`Total Query Cost`, units per
   minute per user). Scanning reads message metadata one by one, which adds up.
-  The client retries transient quota errors with exponential backoff and uses a
-  low default concurrency (`Parallel Gmail requests`, default 4). If a scan still
-  fails with a quota error, wait a minute and lower that value or *Max messages*.
+  The client spaces requests with a global throttle (`Gmail requests per second`,
+  default 8), retries transient quota errors with exponential backoff, and
+  triggers a shared cooldown from all workers when a quota error occurs. If a
+  scan still fails with a quota error, lower that value or *Max messages*.
 - Classification is **sender-based** (the `From` header). A sender that mixes
   topics may need manual adjustment; you can add several labels to one sender.
 - Gmail has limits on the number of filters/labels per account. Reviewing the

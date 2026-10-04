@@ -118,7 +118,9 @@ export function RulesPanel({ rules, onChange }: { rules: Rule[]; onChange: (rule
         <div className="space-y-2 text-sm">
           {rules.map((rule) => (
             <div key={rule.id} className="flex flex-wrap items-center gap-2 text-slate-600 dark:text-slate-300">
-              <span className="text-slate-800 dark:text-slate-100">{rule.senderEmail}</span>
+              <span className="text-slate-800 dark:text-slate-100">
+                {rule.senderEmail ?? rule.query}
+              </span>
               {rule.labelNames.map((name) => (
                 <Badge key={name} tone="indigo">
                   {name}

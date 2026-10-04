@@ -145,6 +145,15 @@ export const SETTING_DEFINITIONS: SettingDefInternal[] = [
     help: 'Lower this if you hit Gmail per-user quota errors. Default 4.',
     default: '4',
   },
+  {
+    key: 'scan.requestsPerSecond',
+    env: 'SCAN_REQUESTS_PER_SECOND',
+    group: 'scan',
+    type: 'number',
+    label: 'Gmail requests per second',
+    help: 'Global throttle to stay under Gmail per-user quota. Default 8.',
+    default: '8',
+  },
 
   // --- Filter actions (defaults proposed when applying) ---
   {
@@ -178,6 +187,15 @@ export const SETTING_DEFINITIONS: SettingDefInternal[] = [
     type: 'boolean',
     label: 'Also apply rules to existing mail',
     default: 'false',
+  },
+  {
+    key: 'filters.maxSendersPerFilter',
+    env: 'FILTERS_MAX_SENDERS',
+    group: 'filters',
+    type: 'number',
+    label: 'Max senders per filter',
+    help: 'Senders are combined into one Gmail filter per label (from: a OR b OR …). Default 50.',
+    default: '50',
   },
 ]
 

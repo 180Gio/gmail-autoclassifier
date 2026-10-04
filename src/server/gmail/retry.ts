@@ -7,10 +7,14 @@
  * a `Retry-After` header when present.
  */
 
+import { acquireGmailSlot, cooldownGmail } from './scheduler.ts'
+
 export interface RetryOptions {
   attempts?: number
   baseDelayMs?: number
   maxDelayMs?: number
+  /** How long all Gmail requests pause after a quota error. Default 60s. */
+  cooldownMs?: number
   onRetry?: (attempt: number, delayMs: number, error: unknown) => void
 }
 
@@ -21,11 +25,15 @@ export async function withRetry<T>(fn: () => Promise<T>, options: RetryOptions =
 
   let lastError: unknown
   for (let attempt = 1; attempt <= attempts; attempt++) {
+    await acquireGmailSlot()
     try {
       return await fn()
     } catch (error) {
       lastError = error
       if (!isRetryableGmailError(error) || attempt === attempts) throw error
+
+      // A quota error means the whole process must slow down, not just this call.
+      if (isQuotaError(error)) cooldownGmail(options.cooldownMs ?? 60000)
 
       const hinted = retryAfterMs(error)
       const exponential = Math.min(maxDelay, baseDelay * 2 ** (attempt - 1))

@@ -1,9 +1,12 @@
 import type { Rule, RuleActions } from '../../shared/types.ts'
 import { all, get, nowIso, run } from '../db.ts'
+import { getNumber } from '../settings.ts'
 import type { AcceptedMapping } from '../classifications.ts'
+import { listGmailFilters } from './filters.ts'
 import { createLocalLabel, ensureGmailLabelId, getLabelByName } from './labels.ts'
 import { getGmail, type Gmail } from './oauth.ts'
 import { withRetry } from './retry.ts'
+import { setGmailRequestsPerSecond } from './scheduler.ts'
 
 export interface ApplyOptions {
   archive: boolean
@@ -71,81 +74,116 @@ function safeObject(value: string): RuleActions {
 }
 
 export function listRules(accountId: number): Rule[] {
-  return all<RuleRow>(
-    'SELECT * FROM rules WHERE account_id = ? ORDER BY id DESC',
-    accountId,
-  ).map(rowToRule)
+  return all<RuleRow>('SELECT * FROM rules WHERE account_id = ? ORDER BY id DESC', accountId).map(
+    rowToRule,
+  )
 }
 
-/** Create Gmail filters (and optionally backfill existing mail) for accepted senders. */
+/**
+ * Create Gmail filters for the accepted senders.
+ *
+ * Senders are **grouped by label**: one filter per label (and per chunk of
+ * `filters.maxSendersPerFilter` senders) with `from: a OR b OR …`, matching how
+ * Gmail itself models filters. Existing filters with the same `from` are skipped.
+ */
 export async function applyRules(
   accountId: number,
   mappings: AcceptedMapping[],
   options: ApplyOptions,
 ): Promise<ApplyResult> {
   const gmail = getGmail(accountId)
+  setGmailRequestsPerSecond(getNumber('scan.requestsPerSecond', 8))
+
   const result: ApplyResult = { rulesCreated: 0, messagesBackfilled: 0, errors: [] }
 
+  // label -> senders
+  const byLabel = new Map<string, string[]>()
   for (const mapping of mappings) {
+    for (const label of mapping.labels) {
+      const list = byLabel.get(label) ?? []
+      list.push(mapping.senderEmail)
+      byLabel.set(label, list)
+    }
+  }
+  if (byLabel.size === 0) return result
+
+  const existingFrom = await loadExistingFrom(accountId)
+  const maxPerFilter = Math.max(1, Math.min(200, getNumber('filters.maxSendersPerFilter', 50)))
+  const removeLabelIds = buildRemoveLabelIds(options)
+
+  for (const [label, sendersRaw] of byLabel) {
+    const senders = [...new Set(sendersRaw)]
     try {
-      const labelIds: string[] = []
-      for (const name of mapping.labels) {
-        // Make sure a local row exists so descriptions survive.
-        if (!getLabelByName(accountId, name)) createLocalLabel(accountId, name, '')
-        labelIds.push(await ensureGmailLabelId(accountId, gmail, name))
-      }
-      if (labelIds.length === 0) continue
+      if (!getLabelByName(accountId, label)) createLocalLabel(accountId, label, '')
+      const labelId = await ensureGmailLabelId(accountId, gmail, label)
 
-      const removeLabelIds = buildRemoveLabelIds(options)
-      const filter = await withRetry(() =>
-        gmail.users.settings.filters.create({
-          userId: 'me',
-          requestBody: {
-            criteria: { from: mapping.senderEmail },
-            action: { addLabelIds: labelIds, removeLabelIds },
-          },
-        }),
-      )
+      for (let i = 0; i < senders.length; i += maxPerFilter) {
+        const chunk = senders.slice(i, i + maxPerFilter)
+        const fromQuery = chunk.join(' OR ')
+        if (existingFrom.has(fromQuery)) continue
 
-      const now = nowIso()
-      const { lastId } = run(
-        `INSERT INTO rules
-           (account_id, gmail_filter_id, label_names, sender_email, actions, backfill, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
-        accountId,
-        filter.data.id ?? null,
-        JSON.stringify(mapping.labels),
-        mapping.senderEmail,
-        JSON.stringify({
-          archive: options.archive,
-          markRead: options.markRead,
-          neverSpam: options.neverSpam,
-        }),
-        options.applyToExisting ? 1 : 0,
-        now,
-        now,
-      )
-      result.rulesCreated += 1
+        try {
+          const filter = await withRetry(() =>
+            gmail.users.settings.filters.create({
+              userId: 'me',
+              requestBody: {
+                criteria: { from: fromQuery },
+                action: { addLabelIds: [labelId], removeLabelIds },
+              },
+            }),
+          )
 
-      if (options.applyToExisting) {
-        const count = await backfill(gmail, mapping.senderEmail, labelIds, removeLabelIds)
-        run(
-          'UPDATE rules SET backfill_count = ?, updated_at = ? WHERE id = ?',
-          count,
-          nowIso(),
-          lastId,
-        )
-        result.messagesBackfilled += count
+          const now = nowIso()
+          const { lastId } = run(
+            `INSERT INTO rules
+               (account_id, gmail_filter_id, label_names, query, actions, backfill, status, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
+            accountId,
+            filter.data.id ?? null,
+            JSON.stringify([label]),
+            fromQuery,
+            JSON.stringify({
+              archive: options.archive,
+              markRead: options.markRead,
+              neverSpam: options.neverSpam,
+            }),
+            options.applyToExisting ? 1 : 0,
+            now,
+            now,
+          )
+          existingFrom.add(fromQuery)
+          result.rulesCreated += 1
+
+          if (options.applyToExisting) {
+            const count = await backfill(gmail, chunk, [labelId], removeLabelIds)
+            run('UPDATE rules SET backfill_count = ?, updated_at = ? WHERE id = ?', count, nowIso(), lastId)
+            result.messagesBackfilled += count
+          }
+        } catch (error) {
+          result.errors.push({
+            sender: `${label} (${chunk.length} senders)`,
+            message: errMsg(error),
+          })
+        }
       }
     } catch (error) {
-      result.errors.push({
-        sender: mapping.senderEmail,
-        message: error instanceof Error ? error.message : String(error),
-      })
+      result.errors.push({ sender: label, message: errMsg(error) })
     }
   }
 
   return result
+}
+
+async function loadExistingFrom(accountId: number): Promise<Set<string>> {
+  const set = new Set<string>()
+  try {
+    for (const filter of await listGmailFilters(accountId)) {
+      if (filter.from) set.add(filter.from.trim())
+    }
+  } catch {
+    // Non-fatal: worst case we try to create a duplicate and Gmail rejects it.
+  }
+  return set
 }
 
 function buildRemoveLabelIds(options: ApplyOptions): string[] {
@@ -159,21 +197,22 @@ function buildRemoveLabelIds(options: ApplyOptions): string[] {
   return ids
 }
 
-/** Apply label changes to existing messages from a sender (capped for safety). */
+/** Apply label changes to existing messages from a group of senders (capped). */
 async function backfill(
   gmail: Gmail,
-  senderEmail: string,
+  senders: string[],
   addLabelIds: string[],
   removeLabelIds: string[],
 ): Promise<number> {
   const CAP = 5000
+  const query = senders.map((s) => `from:${s}`).join(' OR ')
   let total = 0
   let pageToken: string | undefined
   do {
     const res = await withRetry(() =>
       gmail.users.messages.list({
         userId: 'me',
-        q: `from:${senderEmail}`,
+        q: query,
         maxResults: 500,
         pageToken,
       }),
@@ -204,9 +243,12 @@ export async function deleteRule(accountId: number, ruleId: number): Promise<voi
       await withRetry(() => gmail.users.settings.filters.delete({ userId: 'me', id: row.gmail_filter_id! }))
     } catch (error) {
       // A 404 just means the filter was already removed in Gmail.
-      const message = error instanceof Error ? error.message : String(error)
-      if (!/404|not found/i.test(message)) throw error
+      if (!/404|not found/i.test(errMsg(error))) throw error
     }
   }
   run("UPDATE rules SET status = 'deleted', updated_at = ? WHERE id = ?", nowIso(), ruleId)
+}
+
+function errMsg(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

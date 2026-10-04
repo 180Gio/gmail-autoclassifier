@@ -3,6 +3,7 @@ import { all, get, nowIso, run } from '../db.ts'
 import { getNumber } from '../settings.ts'
 import { getGmail, type Gmail } from './oauth.ts'
 import { isQuotaError, withRetry } from './retry.ts'
+import { setGmailRequestsPerSecond } from './scheduler.ts'
 
 interface ScanRow {
   id: number
@@ -123,6 +124,7 @@ async function runScan(scanId: number, accountId: number): Promise<void> {
     const scan = getScan(scanId)
     if (!scan) return
     const gmail = getGmail(accountId)
+    setGmailRequestsPerSecond(getNumber('scan.requestsPerSecond', 8))
 
     const query = buildQuery(scan.months, scan.query)
     const ids = await listMessageIds(gmail, query, scan.maxMessages)
