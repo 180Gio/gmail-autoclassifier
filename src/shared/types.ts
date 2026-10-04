@@ -99,6 +99,8 @@ export interface SettingDefinition {
   help?: string
   options?: string[]
   default?: string
+  /** Shown read-only in the UI (still overridable via environment variable). */
+  readOnly?: boolean
 }
 
 /** A setting value as exposed to the client. Secrets are never sent in clear. */
@@ -109,6 +111,7 @@ export interface SettingView {
   label: string
   help?: string
   options?: string[]
+  readOnly?: boolean
   value: string | null
   /** For type === 'secret': whether a value is stored. */
   hasValue: boolean

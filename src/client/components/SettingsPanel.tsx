@@ -20,7 +20,7 @@ const GROUP_HINTS: Record<string, string> = {
 
 const PROVIDER_NOTES: Record<string, string> = {
   opencode:
-    'Talks to a running OpenCode server. The model provider keys (Anthropic, OpenAI, …) live in OpenCode itself; the API key here only authenticates against the OpenCode endpoint.',
+    'OpenCode is a server (usually local). The URL is the address of that server; the API key is only a credential for servers that require authentication — for a local server without auth, leave it empty. The model provider keys (Anthropic, OpenAI, …) live in OpenCode itself.',
   openai:
     'Any OpenAI-compatible endpoint, including local servers such as Ollama (http://localhost:11434/v1) where the API key can be left empty.',
   mock: 'Offline provider using a local keyword heuristic. For testing the flow only — no API key needed.',
@@ -64,7 +64,13 @@ export function SettingsPanel({
   }
 
   function buildPatch(): Record<string, unknown> {
-    const patch: Record<string, unknown> = { ...draft }
+    const patch: Record<string, unknown> = {}
+    for (const setting of settings) {
+      // Read-only values (e.g. the redirect URI) are never persisted so the
+      // environment variable keeps working as an override.
+      if (setting.readOnly || setting.type === 'secret') continue
+      patch[setting.key] = draft[setting.key] ?? ''
+    }
     for (const [key, val] of Object.entries(secrets)) {
       if (val) patch[key] = val
     }
@@ -164,6 +170,31 @@ function SettingField({
   onChange: (value: string) => void
   onSecretChange: (value: string) => void
 }) {
+  const [copied, setCopied] = useState(false)
+
+  if (setting.readOnly) {
+    function copy() {
+      const promise = navigator.clipboard?.writeText(value)
+      if (!promise) return
+      void promise
+        .then(() => {
+          setCopied(true)
+          window.setTimeout(() => setCopied(false), 1500)
+        })
+        .catch(() => {})
+    }
+    return (
+      <Field label={setting.label} help={setting.help}>
+        <div className="flex items-center gap-2">
+          <Input value={value} readOnly className="font-mono text-xs" />
+          <Button type="button" onClick={copy}>
+            {copied ? 'Copied' : 'Copy'}
+          </Button>
+        </div>
+      </Field>
+    )
+  }
+
   if (setting.type === 'boolean') {
     return (
       <div className="flex items-end">

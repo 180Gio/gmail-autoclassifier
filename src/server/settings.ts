@@ -31,7 +31,7 @@ export const SETTING_DEFINITIONS: SettingDefInternal[] = [
     group: 'ai',
     type: 'string',
     label: 'OpenCode server URL',
-    help: 'Base URL of a running `opencode serve` instance.',
+    help: 'Where your OpenCode server runs. Keep the default for a local `opencode serve`; change it only for a remote or hosted endpoint.',
     default: 'http://localhost:4096',
   },
   {
@@ -97,8 +97,9 @@ export const SETTING_DEFINITIONS: SettingDefInternal[] = [
     group: 'google',
     type: 'string',
     label: 'Authorized redirect URI',
-    help: 'Must match the redirect URI registered in Google Cloud Console.',
+    help: 'Read-only. Register this exact URI in Google Cloud Console. To use a different one, set GOOGLE_REDIRECT_URI in .env.',
     default: 'http://localhost:5173/api/auth/google/callback',
+    readOnly: true,
   },
 
   // --- Scan ---
@@ -200,6 +201,7 @@ export function getSettingsView(): SettingView[] {
         label: def.label,
         help: def.help,
         options: def.options,
+        readOnly: def.readOnly,
         value: null,
         hasValue,
       }
@@ -211,6 +213,7 @@ export function getSettingsView(): SettingView[] {
       label: def.label,
       help: def.help,
       options: def.options,
+      readOnly: def.readOnly,
       value: getSetting(def.key),
       hasValue: getSetting(def.key) !== null,
     }
