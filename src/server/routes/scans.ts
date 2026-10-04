@@ -23,11 +23,17 @@ scansRouter.get('/scans', (_req, res) => {
 
 scansRouter.post('/scans', (req, res) => {
   const account = requireAccount()
-  const body = (req.body ?? {}) as { months?: number; maxMessages?: number; query?: string }
+  const body = (req.body ?? {}) as {
+    months?: number
+    maxMessages?: number
+    query?: string
+    incremental?: boolean
+  }
   const scan = startScan(account.id, {
     months: Number(body.months) || Number(getSetting('scan.months')) || 6,
     maxMessages: Number(body.maxMessages) || Number(getSetting('scan.maxMessages')) || 2000,
     query: body.query,
+    incremental: Boolean(body.incremental),
   })
   res.status(202).json({ scan })
 })

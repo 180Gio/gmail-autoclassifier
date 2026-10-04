@@ -45,7 +45,8 @@ and only writes Gmail filters after you explicitly confirm.
 - Imports your existing labels and lets you create new ones.
 - Lets you write a **description** for each label (what should go in it).
 - Scans recent mail and extracts every distinct sender, with counts and sample
-  subjects.
+  subjects. After the first full scan, later scans are **incremental** (Gmail
+  History API) and only read new messages.
 - Asks an AI provider to suggest one or more labels per sender.
 - Shows a **review screen** where you accept, reject, or change every suggestion.
 - Creates Gmail labels (if missing) and **Gmail filters grouped by label** for the
@@ -173,7 +174,8 @@ it encrypts secrets at rest. Changing it invalidates stored secrets.
    for each (e.g. *"Invoices and receipts from SaaS tools"*). Descriptions drive
    the classification quality.
 2. **Scan** — choose how many months back and a maximum number of messages, then
-   run a scan. Nothing is written to Gmail. Progress is polled live.
+   run a scan. Leave *incremental* on so later scans only read new mail. Nothing
+   is written to Gmail. Progress is polled live.
 3. **Review** — run the AI classification, then accept, reject, or fine-tune the
    labels of each sender. You can also edit a suggestion manually; it is marked
    as manual.
@@ -298,6 +300,11 @@ and read all configuration through `getSetting(...)`.
 - **Filters only affect future mail.** To change existing messages, enable
   *Apply to existing mail* (uses `messages.batchModify`, capped at 5000 messages
   per sender for safety).
+- **Incremental scans.** After the first full scan the app stores the mailbox
+  `historyId` and reads only messages added since then (`history.list`). It
+  carries over the previous sender set so the picture stays complete. If the
+  stored id is too old (Gmail expires history), it silently falls back to a full
+  scan.
 - **Rate limits.** Gmail enforces a per-user quota (`Total Query Cost`, units per
   minute per user). Scanning reads message metadata one by one, which adds up.
   The client spaces requests with a global throttle (`Gmail requests per second`,
@@ -367,7 +374,6 @@ src/
 ## Roadmap
 
 - Domain-level rules (group every sender of a domain).
-- Incremental scans that surface newly seen senders.
 - Sender analytics (volume, unread over time).
 - Import/export of rules and label descriptions.
 - Duplicate filter detection against existing Gmail filters.

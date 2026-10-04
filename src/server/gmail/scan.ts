@@ -9,6 +9,7 @@ interface ScanRow {
   id: number
   account_id: number
   status: string
+  mode: string
   query: string | null
   months: number
   max_messages: number
@@ -24,6 +25,7 @@ function rowToScan(row: ScanRow): Scan {
     id: row.id,
     accountId: row.account_id,
     status: row.status as Scan['status'],
+    mode: row.mode === 'incremental' ? 'incremental' : 'full',
     query: row.query,
     months: row.months,
     maxMessages: row.max_messages,
@@ -39,6 +41,8 @@ export interface StartScanOptions {
   months: number
   maxMessages: number
   query?: string
+  /** Fetch only messages added since the last scan (History API). */
+  incremental?: boolean
 }
 
 const runningScans = new Set<number>()
@@ -101,11 +105,13 @@ export function startScan(accountId: number, options: StartScanOptions): Scan {
   }
   const months = Math.max(1, Math.min(120, Math.round(options.months)))
   const maxMessages = Math.max(50, Math.min(50000, Math.round(options.maxMessages)))
+  const mode = options.incremental && getStoredHistoryId(accountId) ? 'incremental' : 'full'
   const now = nowIso()
   const { lastId } = run(
-    `INSERT INTO scans (account_id, status, query, months, max_messages, started_at)
-     VALUES (?, 'running', ?, ?, ?, ?)`,
+    `INSERT INTO scans (account_id, status, mode, query, months, max_messages, started_at)
+     VALUES (?, 'running', ?, ?, ?, ?, ?)`,
     accountId,
+    mode,
     options.query?.trim() || null,
     months,
     maxMessages,
@@ -126,11 +132,33 @@ async function runScan(scanId: number, accountId: number): Promise<void> {
     const gmail = getGmail(accountId)
     setGmailRequestsPerSecond(getNumber('scan.requestsPerSecond', 8))
 
-    const query = buildQuery(scan.months, scan.query)
-    const ids = await listMessageIds(gmail, query, scan.maxMessages)
+    // Capture the mailbox history id so the next scan can be incremental.
+    const currentHistoryId = await getCurrentHistoryId(gmail)
+
+    let ids: string[] = []
+    let incremental = false
+    if (scan.mode === 'incremental') {
+      const stored = getStoredHistoryId(accountId)
+      if (stored) {
+        const history = await listHistoryMessageIds(gmail, stored, scan.maxMessages)
+        if (history.tooOld) {
+          // History older than Gmail retains: fall back to a full scan.
+          run("UPDATE scans SET mode = 'full' WHERE id = ?", scanId)
+        } else {
+          ids = history.ids
+          incremental = true
+        }
+      }
+    }
+    if (!incremental) {
+      ids = await listMessageIds(gmail, buildQuery(scan.months, scan.query), scan.maxMessages)
+    }
     updateScan(scanId, { messages_fetched: 0, senders_found: 0 })
 
     const aggregated = new Map<string, AggregatedSender>()
+    // Incremental scans only read new messages, so carry over the sender set
+    // from the previous scan to keep the picture complete.
+    if (incremental) seedFromPreviousScan(aggregated, accountId)
     let fetched = 0
     // Keep concurrency low by default: Gmail's per-user quota is easy to trip
     // with many parallel `messages.get` calls on large scans.
@@ -171,6 +199,9 @@ async function runScan(scanId: number, accountId: number): Promise<void> {
       senders_found: rows.length,
       finished_at: nowIso(),
     })
+
+    // Store the history id captured at the start so nothing is missed.
+    if (currentHistoryId) setStoredHistoryId(accountId, currentHistoryId)
   } catch (error) {
     const base = error instanceof Error ? error.message : String(error)
     const message = isQuotaError(error)
@@ -239,6 +270,92 @@ async function listMessageIds(gmail: Gmail, query: string, maxMessages: number):
     pageToken = res.data.nextPageToken ?? undefined
   } while (pageToken && ids.length < maxMessages)
   return ids.slice(0, maxMessages)
+}
+
+interface HistoryResult {
+  ids: string[]
+  tooOld: boolean
+}
+
+/** Collect message ids added since `startHistoryId`, or signal that it is too old. */
+async function listHistoryMessageIds(
+  gmail: Gmail,
+  startHistoryId: string,
+  maxMessages: number,
+): Promise<HistoryResult> {
+  const ids = new Set<string>()
+  let pageToken: string | undefined
+  try {
+    do {
+      const res = await withRetry(() =>
+        gmail.users.history.list({
+          userId: 'me',
+          startHistoryId,
+          historyTypes: ['messageAdded'],
+          maxResults: 500,
+          pageToken,
+        }),
+      )
+      for (const record of res.data.history ?? []) {
+        for (const added of record.messagesAdded ?? []) {
+          const id = added.message?.id
+          if (id) ids.add(id)
+        }
+      }
+      pageToken = res.data.nextPageToken ?? undefined
+    } while (pageToken && ids.size < maxMessages)
+  } catch (error) {
+    if (isHistoryTooOld(error)) return { ids: [], tooOld: true }
+    throw error
+  }
+  return { ids: [...ids].slice(0, maxMessages), tooOld: false }
+}
+
+function isHistoryTooOld(error: unknown): boolean {
+  const status = Number((error as { response?: { status?: number } })?.response?.status)
+  const message = error instanceof Error ? error.message : String(error)
+  return status === 404 || /history.*too old|startHistoryId/i.test(message)
+}
+
+async function getCurrentHistoryId(gmail: Gmail): Promise<string | null> {
+  try {
+    const profile = await withRetry(() => gmail.users.getProfile({ userId: 'me' }))
+    return profile.data.historyId ?? null
+  } catch {
+    return null
+  }
+}
+
+function getStoredHistoryId(accountId: number): string | null {
+  const row = get<{ last_history_id: string | null }>(
+    'SELECT last_history_id FROM accounts WHERE id = ?',
+    accountId,
+  )
+  return row?.last_history_id ?? null
+}
+
+function setStoredHistoryId(accountId: number, historyId: string): void {
+  run('UPDATE accounts SET last_history_id = ?, updated_at = ? WHERE id = ?', historyId, nowIso(), accountId)
+}
+
+/** Seed the aggregation with the senders from the last completed scan. */
+function seedFromPreviousScan(map: Map<string, AggregatedSender>, accountId: number): void {
+  const previous = get<{ id: number }>(
+    "SELECT id FROM scans WHERE account_id = ? AND status = 'done' ORDER BY id DESC LIMIT 1",
+    accountId,
+  )
+  if (!previous) return
+  for (const sender of getSenders(previous.id)) {
+    map.set(sender.email, {
+      email: sender.email,
+      displayName: sender.displayName,
+      domain: sender.domain ?? sender.email.split('@')[1] ?? '',
+      count: sender.messageCount,
+      unread: sender.unreadCount,
+      subjects: [...sender.sampleSubjects],
+      lastSeen: sender.lastSeen,
+    })
+  }
 }
 
 interface MessageMeta {

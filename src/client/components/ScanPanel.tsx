@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Scan } from '../../shared/types.ts'
 import { Api } from '../api.ts'
-import { Badge, Button, Card, ErrorBanner, Field, Input, Spinner } from './ui.tsx'
+import { Badge, Button, Card, ErrorBanner, Field, Input, Spinner, Toggle } from './ui.tsx'
 
 export function ScanPanel({
   scans,
@@ -21,6 +21,7 @@ export function ScanPanel({
   const [months, setMonths] = useState(String(defaults.months))
   const [maxMessages, setMaxMessages] = useState(String(defaults.maxMessages))
   const [query, setQuery] = useState('')
+  const [incremental, setIncremental] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const timer = useRef<number | null>(null)
@@ -54,6 +55,7 @@ export function ScanPanel({
         months: Number(months) || defaults.months,
         maxMessages: Number(maxMessages) || defaults.maxMessages,
         query: query.trim() || undefined,
+        incremental,
       })
       onScansChange((await Api.scans()).scans)
       onSelectScan(res.scan.id)
@@ -89,7 +91,16 @@ export function ScanPanel({
             <Input value={query} onChange={(e) => setQuery(e.target.value)} />
           </Field>
         </div>
-        <div className="mt-4">
+        <div className="mt-4 space-y-3">
+          <Toggle
+            label="Only new mail since the last scan (incremental, much faster)"
+            checked={incremental}
+            onChange={setIncremental}
+          />
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            On the first scan this is ignored (there is no history yet); it falls back to a full scan
+            automatically.
+          </p>
           <Button variant="primary" onClick={start} disabled={busy || running}>
             {running ? 'Scan in progress...' : 'Start scan'}
           </Button>
@@ -100,6 +111,7 @@ export function ScanPanel({
         <Card title={`Scan #${active.id}`}>
           <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600 dark:text-slate-300">
             <StatusBadge status={active.status} />
+            <Badge tone={active.mode === 'incremental' ? 'indigo' : 'slate'}>{active.mode}</Badge>
             <span>
               {active.messagesFetched} messages processed · {active.sendersFound} senders found
             </span>
@@ -125,6 +137,7 @@ export function ScanPanel({
             <div key={scan.id} className="flex items-center justify-between gap-4 py-2">
               <div className="flex items-center gap-3 text-sm">
                 <StatusBadge status={scan.status} />
+                <Badge tone={scan.mode === 'incremental' ? 'indigo' : 'slate'}>{scan.mode}</Badge>
                 <span className="text-slate-700 dark:text-slate-200">#{scan.id}</span>
                 <span className="text-slate-400 dark:text-slate-500">
                   last {scan.months}m · {scan.maxMessages} max

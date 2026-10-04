@@ -27,6 +27,7 @@ export interface Scan {
   id: number
   accountId: number
   status: 'running' | 'done' | 'error'
+  mode: 'full' | 'incremental'
   query: string | null
   months: number
   maxMessages: number

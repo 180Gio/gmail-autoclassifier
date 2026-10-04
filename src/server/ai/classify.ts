@@ -39,6 +39,11 @@ const CHUNK_SIZE = 25
  * Classify senders into labels. Senders are processed in small chunks for
  * reliability, and label names are validated against the provided list so the
  * model cannot invent new labels.
+ *
+ * We intentionally do NOT request a JSON response_format: several
+ * OpenAI-compatible backends (e.g. OpenCode Go's DeepSeek) break when forced
+ * into `json_object` mode for an array response. We instruct in the prompt and
+ * parse defensively instead.
  */
 export async function classifySenders(options: ClassifyOptions): Promise<SenderClassification[]> {
   const { labels, senders } = options
@@ -55,16 +60,20 @@ export async function classifySenders(options: ClassifyOptions): Promise<SenderC
   const known = new Map(labels.map((l) => [l.name.toLowerCase(), l.name]))
   const results: SenderClassification[] = []
 
+  const chunks: ClassifySenderInput[][] = []
+  for (let i = 0; i < senders.length; i += CHUNK_SIZE) chunks.push(senders.slice(i, i + CHUNK_SIZE))
+
   // One stable session id for the whole run: better routing and prompt caching
   // with providers like OpenCode Go, which require `x-opencode-session`.
   const sessionId = randomUUID()
 
-  for (let i = 0; i < senders.length; i += CHUNK_SIZE) {
-    const chunk = senders.slice(i, i + CHUNK_SIZE)
+  let failedChunks = 0
+  let lastSnippet = ''
+
+  for (const chunk of chunks) {
     const req: GenerateRequest = {
       system: SYSTEM_PROMPT,
       prompt: buildPrompt(labels, chunk),
-      json: true,
       temperature: 0.1,
       sessionId,
     }
@@ -79,7 +88,20 @@ export async function classifySenders(options: ClassifyOptions): Promise<SenderC
       })
       parsed = safeParse(raw, known, byEmail)
     }
-    if (parsed) results.push(...parsed)
+
+    if (parsed === null) {
+      failedChunks += 1
+      lastSnippet = raw.slice(0, 200)
+      console.warn('[classify] could not parse model response:', JSON.stringify(lastSnippet))
+      continue
+    }
+    results.push(...parsed)
+  }
+
+  if (failedChunks > 0 && failedChunks === chunks.length) {
+    throw new Error(
+      `The model did not return valid JSON (${failedChunks} chunk(s) failed). Response started with: ${lastSnippet}`,
+    )
   }
 
   return results
@@ -115,7 +137,7 @@ function buildPrompt(labels: ClassifyLabelInput[], senders: ClassifySenderInput[
     '- confidence is a number between 0 and 1.',
     '- rationale is a very short reason (max 15 words).',
     '',
-    'Reply with a single JSON array, no markdown, in this exact shape:',
+    'Reply with a single raw JSON array and nothing else (no markdown, no prose), in this exact shape:',
     '[{"sender":"a@b.com","labels":["Newsletters"],"confidence":0.9,"rationale":"Weekly tech digest"}]',
   ].join('\n')
 }
@@ -132,16 +154,8 @@ function safeParse(
   known: Map<string, string>,
   byEmail: Map<string, ClassifySenderInput>,
 ): SenderClassification[] | null {
-  const start = text.indexOf('[')
-  const end = text.lastIndexOf(']')
-  if (start === -1 || end === -1 || end <= start) return null
-  let items: RawItem[]
-  try {
-    items = JSON.parse(text.slice(start, end + 1)) as RawItem[]
-  } catch {
-    return null
-  }
-  if (!Array.isArray(items)) return null
+  const items = extractItems(text)
+  if (!items) return null
 
   const out: SenderClassification[] = []
   for (const item of items) {
@@ -164,6 +178,38 @@ function safeParse(
     })
   }
   return out
+}
+
+/**
+ * Pull an array of classification items out of a model response. Accepts a bare
+ * JSON array (possibly wrapped in markdown) or an object containing an array.
+ */
+function extractItems(text: string): RawItem[] | null {
+  const array = tryParse<RawItem[]>(text, '[', ']')
+  if (Array.isArray(array)) return array
+
+  const object = tryParse<Record<string, unknown>>(text, '{', '}')
+  if (object && typeof object === 'object') {
+    for (const key of ['classifications', 'results', 'senders', 'items', 'data']) {
+      const value = object[key]
+      if (Array.isArray(value)) return value as RawItem[]
+    }
+    for (const value of Object.values(object)) {
+      if (Array.isArray(value)) return value as RawItem[]
+    }
+  }
+  return null
+}
+
+function tryParse<T>(text: string, open: string, close: string): T | null {
+  const start = text.indexOf(open)
+  const end = text.lastIndexOf(close)
+  if (start === -1 || end === -1 || end <= start) return null
+  try {
+    return JSON.parse(text.slice(start, end + 1)) as T
+  } catch {
+    return null
+  }
 }
 
 /** Simple keyword-based fallback used by the mock provider. */

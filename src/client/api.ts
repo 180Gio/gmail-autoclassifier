@@ -57,7 +57,7 @@ export const Api = {
     }),
 
   scans: () => request<{ scans: Scan[] }>('/api/scans'),
-  createScan: (input: { months: number; maxMessages: number; query?: string }) =>
+  createScan: (input: { months: number; maxMessages: number; query?: string; incremental?: boolean }) =>
     request<{ scan: Scan }>('/api/scans', { method: 'POST', body: JSON.stringify(input) }),
   scan: (id: number) => request<{ scan: Scan }>(`/api/scans/${id}`),
   senders: (id: number) => request<{ senders: Sender[] }>(`/api/scans/${id}/senders`),

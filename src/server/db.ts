@@ -27,15 +27,16 @@ function migrate(db: DatabaseSync): void {
     );
 
     CREATE TABLE IF NOT EXISTS accounts (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      email         TEXT NOT NULL UNIQUE,
-      google_id     TEXT,
-      refresh_token TEXT,
-      access_token  TEXT,
-      token_expiry  INTEGER,
-      scopes        TEXT,
-      created_at    TEXT NOT NULL,
-      updated_at    TEXT NOT NULL
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      email           TEXT NOT NULL UNIQUE,
+      google_id       TEXT,
+      refresh_token   TEXT,
+      access_token    TEXT,
+      token_expiry    INTEGER,
+      scopes          TEXT,
+      last_history_id TEXT,
+      created_at      TEXT NOT NULL,
+      updated_at      TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS labels (
@@ -56,6 +57,7 @@ function migrate(db: DatabaseSync): void {
       id               INTEGER PRIMARY KEY AUTOINCREMENT,
       account_id       INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
       status           TEXT NOT NULL,
+      mode             TEXT NOT NULL DEFAULT 'full',
       query            TEXT,
       months           INTEGER NOT NULL DEFAULT 6,
       max_messages     INTEGER NOT NULL DEFAULT 2000,
@@ -116,6 +118,17 @@ function migrate(db: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS idx_classifications_scan ON classifications(scan_id);
     CREATE INDEX IF NOT EXISTS idx_rules_account ON rules(account_id);
   `)
+
+  // Columns added after the first release.
+  ensureColumn(db, 'accounts', 'last_history_id', 'TEXT')
+  ensureColumn(db, 'scans', 'mode', "TEXT NOT NULL DEFAULT 'full'")
+}
+
+function ensureColumn(db: DatabaseSync, table: string, column: string, ddl: string): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
+  if (!columns.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`)
+  }
 }
 
 export function nowIso(): string {
