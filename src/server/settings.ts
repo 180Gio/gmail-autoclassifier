@@ -22,7 +22,7 @@ export const SETTING_DEFINITIONS: SettingDefInternal[] = [
     type: 'select',
     label: 'AI provider',
     help: 'Which provider performs the classification.',
-    options: ['opencode', 'openai', 'mock'],
+    options: ['opencode', 'opencode-go', 'openai', 'mock'],
     default: 'opencode',
   },
   {
@@ -49,6 +49,23 @@ export const SETTING_DEFINITIONS: SettingDefInternal[] = [
     type: 'secret',
     label: 'API key / Bearer token',
     help: 'Sent as "Authorization: Bearer <token>" to the OpenCode server. Only needed for a remote, shared or hosted OpenCode endpoint that requires authentication.',
+  },
+  {
+    key: 'ai.opencode-go.apiKey',
+    env: 'OPENCODE_GO_API_KEY',
+    group: 'ai',
+    type: 'secret',
+    label: 'OpenCode Go API key',
+    help: 'From the OpenCode Console (Go subscription). No local OpenCode server needed.',
+  },
+  {
+    key: 'ai.opencode-go.model',
+    env: 'OPENCODE_GO_MODEL',
+    group: 'ai',
+    type: 'string',
+    label: 'Model',
+    help: 'Model id served on /chat/completions: e.g. deepseek-v4.1-flash, kimi-k3, glm-5.3, deepseek-v4-pro.',
+    default: 'deepseek-v4.1-flash',
   },
   {
     key: 'ai.openai.baseUrl',
@@ -267,7 +284,9 @@ export function saveSettings(patch: Record<string, unknown>): void {
 
 export function getAiProviderId(): AiProviderId {
   const value = getSetting('ai.provider') as AiProviderId | null
-  if (value === 'opencode' || value === 'openai' || value === 'mock') return value
+  if (value === 'opencode' || value === 'opencode-go' || value === 'openai' || value === 'mock') {
+    return value
+  }
   return 'opencode'
 }
 

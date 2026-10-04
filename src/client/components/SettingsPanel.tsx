@@ -21,6 +21,8 @@ const GROUP_HINTS: Record<string, string> = {
 const PROVIDER_NOTES: Record<string, string> = {
   opencode:
     'OpenCode is a server (usually local). The URL is the address of that server; the API key is only a credential for servers that require authentication — for a local server without auth, leave it empty. The model provider keys (Anthropic, OpenAI, …) live in OpenCode itself.',
+  'opencode-go':
+    'Hosted OpenCode Go subscription — no local server or OpenCode installation needed. Paste your API key from the OpenCode Console. Requests go to the OpenAI-compatible endpoint https://opencode.ai/zen/go/v1.',
   openai:
     'Any OpenAI-compatible endpoint, including local servers such as Ollama (http://localhost:11434/v1) where the API key can be left empty.',
   mock: 'Offline provider using a local keyword heuristic. For testing the flow only — no API key needed.',

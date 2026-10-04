@@ -1,6 +1,7 @@
 import type { AiProviderId } from '../../shared/types.ts'
 import { getAiProviderId } from '../settings.ts'
 import { opencodeProvider } from './providers/opencode.ts'
+import { opencodeGoProvider } from './providers/opencode-go.ts'
 import { openaiProvider } from './providers/openai.ts'
 import { mockProvider } from './providers/mock.ts'
 import type { AiProvider } from './types.ts'
@@ -12,6 +13,8 @@ export function getProvider(id: AiProviderId = getAiProviderId()): AiProvider {
   switch (id) {
     case 'opencode':
       return opencodeProvider()
+    case 'opencode-go':
+      return opencodeGoProvider()
     case 'openai':
       return openaiProvider()
     case 'mock':

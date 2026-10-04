@@ -125,6 +125,7 @@ scansRouter.post('/scans/:id/apply', async (req, res) => {
 function currentModelName(): string {
   const id = getAiProviderId()
   if (id === 'openai') return getSetting('ai.openai.model') ?? 'openai'
+  if (id === 'opencode-go') return getSetting('ai.opencode-go.model') ?? 'opencode-go'
   if (id === 'opencode') return getSetting('ai.opencode.model') ?? 'opencode-default'
   return 'mock'
 }

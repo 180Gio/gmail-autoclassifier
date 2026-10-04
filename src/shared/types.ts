@@ -2,7 +2,7 @@
  * Shared types between the API server and the web client.
  */
 
-export type AiProviderId = 'opencode' | 'openai' | 'mock'
+export type AiProviderId = 'opencode' | 'opencode-go' | 'openai' | 'mock'
 
 export type LabelKind = 'user' | 'system'
 

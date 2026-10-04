@@ -138,7 +138,9 @@ variable. `.env` only provides defaults/fallbacks.
 
 | Setting | Env var | Default | Notes |
 | --- | --- | --- | --- |
-| AI provider | `AI_PROVIDER` | `opencode` | `opencode`, `openai`, or `mock` |
+| AI provider | `AI_PROVIDER` | `opencode` | `opencode`, `opencode-go`, `openai`, or `mock` |
+| OpenCode Go API key | `OPENCODE_GO_API_KEY` | | hosted subscription; no local server |
+| OpenCode Go model | `OPENCODE_GO_MODEL` | `deepseek-v4.1-flash` | e.g. `kimi-k3`, `glm-5.3` |
 | OpenCode server URL | `OPENCODE_BASE_URL` | `http://localhost:4096` | |
 | OpenCode model | `OPENCODE_MODEL` | *(empty)* | `provider/model` |
 | OpenCode token | `OPENCODE_TOKEN` | | optional bearer token |
@@ -191,7 +193,8 @@ export interface AiProvider {
 
 ### OpenCode
 
-Uses the one-shot generation endpoint of a running OpenCode server:
+Uses the one-shot generation endpoint of a running self-hosted OpenCode server.
+If you only want the hosted subscription, use **OpenCode Go** below instead.
 
 ```bash
 opencode serve           # exposes http://localhost:4096
@@ -204,6 +207,19 @@ opencode serve           # exposes http://localhost:4096
 
 Requests go to `POST /api/experimental/generate` with
 `{ prompt, model? }` and the response text is read from `{ data: { text } }`.
+
+### OpenCode Go
+
+The hosted OpenCode subscription. **No local server or OpenCode install
+required** — just an API key from the OpenCode Console.
+
+- **API key**: your OpenCode Go key.
+- **Model**: `deepseek-v4.1-flash` by default. Other ids served on
+  `/chat/completions`, such as `kimi-k3`, `glm-5.3` or `deepseek-v4-pro`, also work.
+
+Requests go to `https://opencode.ai/zen/go/v1/chat/completions` with
+`Authorization: Bearer <key>`. A few Go models (MiniMax, Qwen) are only served on
+the Anthropic-native `/messages` endpoint and are not supported by this provider.
 
 ### OpenAI-compatible
 
