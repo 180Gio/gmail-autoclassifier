@@ -3,6 +3,7 @@ import { all, get, nowIso, run } from '../db.ts'
 import type { AcceptedMapping } from '../classifications.ts'
 import { createLocalLabel, ensureGmailLabelId, getLabelByName } from './labels.ts'
 import { getGmail, type Gmail } from './oauth.ts'
+import { withRetry } from './retry.ts'
 
 export interface ApplyOptions {
   archive: boolean
@@ -96,13 +97,15 @@ export async function applyRules(
       if (labelIds.length === 0) continue
 
       const removeLabelIds = buildRemoveLabelIds(options)
-      const filter = await gmail.users.settings.filters.create({
-        userId: 'me',
-        requestBody: {
-          criteria: { from: mapping.senderEmail },
-          action: { addLabelIds: labelIds, removeLabelIds },
-        },
-      })
+      const filter = await withRetry(() =>
+        gmail.users.settings.filters.create({
+          userId: 'me',
+          requestBody: {
+            criteria: { from: mapping.senderEmail },
+            action: { addLabelIds: labelIds, removeLabelIds },
+          },
+        }),
+      )
 
       const now = nowIso()
       const { lastId } = run(
@@ -167,18 +170,22 @@ async function backfill(
   let total = 0
   let pageToken: string | undefined
   do {
-    const res = await gmail.users.messages.list({
-      userId: 'me',
-      q: `from:${senderEmail}`,
-      maxResults: 500,
-      pageToken,
-    })
+    const res = await withRetry(() =>
+      gmail.users.messages.list({
+        userId: 'me',
+        q: `from:${senderEmail}`,
+        maxResults: 500,
+        pageToken,
+      }),
+    )
     const ids = (res.data.messages ?? []).map((m) => m.id).filter((id): id is string => Boolean(id))
     if (ids.length > 0) {
-      await gmail.users.messages.batchModify({
-        userId: 'me',
-        requestBody: { ids, addLabelIds, removeLabelIds },
-      })
+      await withRetry(() =>
+        gmail.users.messages.batchModify({
+          userId: 'me',
+          requestBody: { ids, addLabelIds, removeLabelIds },
+        }),
+      )
       total += ids.length
     }
     pageToken = res.data.nextPageToken ?? undefined
@@ -194,7 +201,7 @@ export async function deleteRule(accountId: number, ruleId: number): Promise<voi
   if (row.gmail_filter_id) {
     try {
       const gmail = getGmail(accountId)
-      await gmail.users.settings.filters.delete({ userId: 'me', id: row.gmail_filter_id })
+      await withRetry(() => gmail.users.settings.filters.delete({ userId: 'me', id: row.gmail_filter_id! }))
     } catch (error) {
       // A 404 just means the filter was already removed in Gmail.
       const message = error instanceof Error ? error.message : String(error)

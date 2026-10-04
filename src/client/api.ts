@@ -1,6 +1,7 @@
 import type {
   Classification,
   ClassificationStatus,
+  GmailFilter,
   Label,
   Rule,
   Scan,
@@ -86,4 +87,10 @@ export const Api = {
   rules: () => request<{ rules: Rule[] }>('/api/rules'),
   deleteRule: (id: number) =>
     request<{ rules: Rule[] }>(`/api/rules/${id}`, { method: 'DELETE' }),
+
+  gmailFilters: () => request<{ filters: GmailFilter[] }>('/api/gmail-filters'),
+  deleteGmailFilter: (id: string) =>
+    request<{ filters: GmailFilter[] }>(`/api/gmail-filters/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
 }

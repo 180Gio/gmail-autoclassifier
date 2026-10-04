@@ -89,6 +89,22 @@ export interface Rule {
   createdAt: string
 }
 
+/** A filter as it exists in Gmail (not just the ones created by this app). */
+export interface GmailFilter {
+  id: string
+  from: string | null
+  to: string | null
+  subject: string | null
+  query: string | null
+  negatedQuery: string | null
+  hasAttachment: boolean
+  addLabels: string[]
+  removeLabels: string[]
+  forward: string | null
+  createdByApp: boolean
+  ruleId: number | null
+}
+
 export type SettingType = 'string' | 'secret' | 'number' | 'boolean' | 'select'
 
 export interface SettingDefinition {

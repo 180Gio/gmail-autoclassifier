@@ -56,6 +56,8 @@ and only writes Gmail filters after you explicitly confirm.
   - never send to spam,
   - optionally apply the same changes to **existing** mail (backfill).
 - Keeps a list of the filters it created, and lets you delete them from the app.
+- Lists **every filter in Gmail** (including ones created outside the app) so you
+  can review and remove them.
 - Modern glass UI with light/dark mode, and a settings screen that shows only the
   fields of the selected AI provider.
 
@@ -152,6 +154,7 @@ variable. `.env` only provides defaults/fallbacks.
 | Redirect URI | `GOOGLE_REDIRECT_URI` | `http://localhost:5173/api/auth/google/callback` | must match Google Console |
 | Scan window (months) | `SCAN_MONTHS` | `6` | |
 | Max messages per scan | `SCAN_MAX_MESSAGES` | `2000` | |
+| Parallel Gmail requests | `SCAN_CONCURRENCY` | `4` | lower if you hit Gmail quota |
 | Archive classified mail | `FILTERS_ARCHIVE` | `false` | |
 | Mark as read | `FILTERS_MARK_READ` | `false` | |
 | Never send to spam | `FILTERS_NEVER_SPAM` | `true` | |
@@ -291,6 +294,11 @@ and read all configuration through `getSetting(...)`.
 - **Filters only affect future mail.** To change existing messages, enable
   *Apply to existing mail* (uses `messages.batchModify`, capped at 5000 messages
   per sender for safety).
+- **Rate limits.** Gmail enforces a per-user quota (`Total Query Cost`, units per
+  minute per user). Scanning reads message metadata one by one, which adds up.
+  The client retries transient quota errors with exponential backoff and uses a
+  low default concurrency (`Parallel Gmail requests`, default 4). If a scan still
+  fails with a quota error, wait a minute and lower that value or *Max messages*.
 - Classification is **sender-based** (the `From` header). A sender that mixes
   topics may need manual adjustment; you can add several labels to one sender.
 - Gmail has limits on the number of filters/labels per account. Reviewing the

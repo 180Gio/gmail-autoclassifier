@@ -136,6 +136,15 @@ export const SETTING_DEFINITIONS: SettingDefInternal[] = [
     label: 'Default max messages per scan',
     default: '2000',
   },
+  {
+    key: 'scan.concurrency',
+    env: 'SCAN_CONCURRENCY',
+    group: 'scan',
+    type: 'number',
+    label: 'Parallel Gmail requests',
+    help: 'Lower this if you hit Gmail per-user quota errors. Default 4.',
+    default: '4',
+  },
 
   // --- Filter actions (defaults proposed when applying) ---
   {

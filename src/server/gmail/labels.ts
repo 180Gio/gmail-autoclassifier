@@ -1,6 +1,7 @@
 import type { Label, LabelKind } from '../../shared/types.ts'
 import { all, get, nowIso, run } from '../db.ts'
 import type { Gmail } from './oauth.ts'
+import { withRetry } from './retry.ts'
 
 interface LabelRow {
   id: number
@@ -44,7 +45,7 @@ export function getLabelByName(accountId: number, name: string): Label | undefin
 
 /** Pull labels from Gmail into the local table, preserving existing descriptions. */
 export async function syncLabelsFromGmail(accountId: number, gmail: Gmail): Promise<Label[]> {
-  const res = await gmail.users.labels.list({ userId: 'me' })
+  const res = await withRetry(() => gmail.users.labels.list({ userId: 'me' }))
   const gmailLabels = res.data.labels ?? []
   const now = nowIso()
   for (const label of gmailLabels) {
@@ -135,7 +136,7 @@ export async function ensureGmailLabelId(
   if (local?.gmailId) return local.gmailId
 
   // Refresh from Gmail once in case the label already exists server-side.
-  const listed = await gmail.users.labels.list({ userId: 'me' })
+  const listed = await withRetry(() => gmail.users.labels.list({ userId: 'me' }))
   const existing = (listed.data.labels ?? []).find(
     (l) => l.name?.toLowerCase() === clean.toLowerCase(),
   )
@@ -150,10 +151,12 @@ export async function ensureGmailLabelId(
     await ensureGmailLabelId(accountId, gmail, clean.slice(0, slash))
   }
 
-  const created = await gmail.users.labels.create({
-    userId: 'me',
-    requestBody: { name: clean, labelListVisibility: 'labelShow', messageListVisibility: 'show' },
-  })
+  const created = await withRetry(() =>
+    gmail.users.labels.create({
+      userId: 'me',
+      requestBody: { name: clean, labelListVisibility: 'labelShow', messageListVisibility: 'show' },
+    }),
+  )
   const gmailId = created.data.id
   if (!gmailId) throw new Error(`Failed to create Gmail label "${clean}".`)
   setGmailId(accountId, clean, gmailId, true)

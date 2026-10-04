@@ -1,6 +1,8 @@
 import type { Scan, Sender } from '../../shared/types.ts'
 import { all, get, nowIso, run } from '../db.ts'
+import { getNumber } from '../settings.ts'
 import { getGmail, type Gmail } from './oauth.ts'
+import { isQuotaError, withRetry } from './retry.ts'
 
 interface ScanRow {
   id: number
@@ -128,8 +130,11 @@ async function runScan(scanId: number, accountId: number): Promise<void> {
 
     const aggregated = new Map<string, AggregatedSender>()
     let fetched = 0
+    // Keep concurrency low by default: Gmail's per-user quota is easy to trip
+    // with many parallel `messages.get` calls on large scans.
+    const concurrency = Math.max(1, Math.min(16, getNumber('scan.concurrency', 4)))
 
-    await mapPool(ids, 8, async (id) => {
+    await mapPool(ids, concurrency, async (id) => {
       const message = await getMetadata(gmail, id)
       if (message) aggregate(aggregated, message)
       fetched += 1
@@ -165,9 +170,13 @@ async function runScan(scanId: number, accountId: number): Promise<void> {
       finished_at: nowIso(),
     })
   } catch (error) {
+    const base = error instanceof Error ? error.message : String(error)
+    const message = isQuotaError(error)
+      ? `${base} — Gmail per-user quota reached. Wait a minute, then lower "Max messages" or "Concurrency" and scan again.`
+      : base
     run(
       "UPDATE scans SET status = 'error', error = ?, finished_at = ? WHERE id = ?",
-      error instanceof Error ? error.message : String(error),
+      message,
       nowIso(),
       scanId,
     )
@@ -214,12 +223,14 @@ async function listMessageIds(gmail: Gmail, query: string, maxMessages: number):
   const ids: string[] = []
   let pageToken: string | undefined
   do {
-    const res = await gmail.users.messages.list({
-      userId: 'me',
-      q: query,
-      maxResults: Math.min(500, maxMessages - ids.length),
-      pageToken,
-    })
+    const res = await withRetry(() =>
+      gmail.users.messages.list({
+        userId: 'me',
+        q: query,
+        maxResults: Math.min(500, maxMessages - ids.length),
+        pageToken,
+      }),
+    )
     for (const m of res.data.messages ?? []) {
       if (m.id) ids.push(m.id)
     }
@@ -236,12 +247,14 @@ interface MessageMeta {
 }
 
 async function getMetadata(gmail: Gmail, id: string): Promise<MessageMeta | null> {
-  const res = await gmail.users.messages.get({
-    userId: 'me',
-    id,
-    format: 'metadata',
-    metadataHeaders: ['From', 'Subject', 'Date'],
-  })
+  const res = await withRetry(() =>
+    gmail.users.messages.get({
+      userId: 'me',
+      id,
+      format: 'metadata',
+      metadataHeaders: ['From', 'Subject', 'Date'],
+    }),
+  )
   const headers = res.data.payload?.headers ?? []
   const header = (name: string): string =>
     headers.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value ?? ''
