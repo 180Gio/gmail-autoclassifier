@@ -7,7 +7,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "concurrently -k -n api,web -c blue,magenta \"npm:dev:api\" \"wait-on -t 180000 http://127.0.0.1:8787/api/health && npm run dev:web\"",
-    "dev:api": "tsx watch src/server/index.ts",
+    "dev:api": "nodemon -L -P 500 -w src/server -w src/shared -e ts -i \"src/**/*.test.ts\" -x \"tsx src/server/index.ts\"",
     "dev:web": "vite",
     "start": "tsx src/server/index.ts",
     "build": "vite build",
@@ -28,6 +28,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "concurrently": "^10.0.5",
+    "nodemon": "^3.1.14",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "tailwindcss": "^4.3.3",

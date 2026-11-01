@@ -369,9 +369,10 @@ src/
 | `npm start` | Start the API (serves `dist/client` if built) |
 | `npm run typecheck` | Type-check the whole project |
 
-> On WSL with the project stored on a Windows drive (`/mnt/c`, `/mnt/d`), the
-> first startup of `tsx watch` can be slow because of filesystem scanning. For
-> better performance, keep the repository on the Linux filesystem (`~/...`).
+> On WSL with the project stored on a Windows drive (`/mnt/c`, `/mnt/d`),
+> inotify events are unreliable, so the API uses **polling** (`nodemon -L -P 500`)
+> to reload on changes. That works but is a bit CPU-hungry; for the best
+> experience keep the repository on the Linux filesystem (`~/...`).
 >
 > `npm run dev` starts Vite only after the API answers `/api/health`, and the web
 > UI keeps retrying while the API boots, so a slow first start shows a
