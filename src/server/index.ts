@@ -5,6 +5,7 @@ import { getDb } from './db.ts'
 import { IS_PROD, HOST, PORT, SESSION_SECRET, WEB_ORIGIN } from './env.ts'
 import { errorHandler, notFound } from './http.ts'
 import { cleanupStaleScans } from './gmail/scan.ts'
+import { analyticsRouter } from './routes/analytics.ts'
 import { authRouter } from './routes/auth.ts'
 import { labelsRouter } from './routes/labels.ts'
 import { rulesRouter } from './routes/rules.ts'
@@ -35,6 +36,7 @@ app.use(
   labelsRouter,
   scansRouter,
   rulesRouter,
+  analyticsRouter,
 )
 app.use('/api', notFound)
 

@@ -1,4 +1,5 @@
 import type {
+  Analytics,
   Classification,
   ClassificationStatus,
   FilterPlan,
@@ -117,4 +118,6 @@ export const Api = {
     request<{ filters: GmailFilter[] }>(`/api/gmail-filters/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     }),
+
+  analytics: () => request<Analytics>('/api/analytics'),
 }

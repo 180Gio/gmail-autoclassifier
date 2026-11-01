@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Label, Rule, Scan, SettingView, StatusResponse } from '../shared/types.ts'
 import { Api } from './api.ts'
+import { AnalyticsPanel } from './components/AnalyticsPanel.tsx'
 import { LabelsPanel } from './components/LabelsPanel.tsx'
 import { ReviewPanel } from './components/ReviewPanel.tsx'
 import { RulesPanel } from './components/RulesPanel.tsx'
@@ -9,13 +10,14 @@ import { SettingsPanel } from './components/SettingsPanel.tsx'
 import { Badge, Button, Card, ErrorBanner, SuccessBanner, ThemeToggle } from './components/ui.tsx'
 import { useTheme } from './useTheme.ts'
 
-type Tab = 'connect' | 'labels' | 'scan' | 'review' | 'rules' | 'settings'
+type Tab = 'connect' | 'labels' | 'scan' | 'review' | 'analytics' | 'rules' | 'settings'
 
 const TABS: Array<{ id: Tab; label: string; needsAccount: boolean }> = [
   { id: 'connect', label: 'Overview', needsAccount: false },
   { id: 'labels', label: 'Labels', needsAccount: true },
   { id: 'scan', label: 'Scan', needsAccount: true },
   { id: 'review', label: 'Review', needsAccount: true },
+  { id: 'analytics', label: 'Analytics', needsAccount: true },
   { id: 'rules', label: 'Rules', needsAccount: true },
   { id: 'settings', label: 'Settings', needsAccount: false },
 ]
@@ -244,6 +246,7 @@ export function App() {
           />
         )}
         {tab === 'rules' && connected && <RulesPanel rules={rules} onChange={setRules} />}
+        {tab === 'analytics' && connected && <AnalyticsPanel />}
         {tab === 'settings' && <SettingsPanel settings={settings} onSaved={setSettings} />}
       </main>
 

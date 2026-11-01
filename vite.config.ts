@@ -9,6 +9,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
+    // WSL + Windows drives (/mnt/c, /mnt/d) don't deliver inotify events
+    // reliably; poll so HMR actually sees changes.
+    watch: { usePolling: true, interval: 500 },
     proxy: {
       '/api': {
         target: `http://127.0.0.1:${process.env.PORT ?? '8787'}`,

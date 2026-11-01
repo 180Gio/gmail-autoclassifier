@@ -137,6 +137,26 @@ export interface FilterPlan {
   options: FilterPlanOptions
 }
 
+export interface DomainStat {
+  domain: string
+  senders: number
+  messages: number
+  unread: number
+}
+
+export interface LabelStat {
+  label: string
+  senders: number
+}
+
+export interface Analytics {
+  scan: Scan | null
+  totals: { senders: number; messages: number; unread: number }
+  topSenders: Sender[]
+  topDomains: DomainStat[]
+  labels: LabelStat[]
+}
+
 export type SettingType = 'string' | 'secret' | 'number' | 'boolean' | 'select'
 
 export interface SettingDefinition {
