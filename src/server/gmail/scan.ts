@@ -163,7 +163,7 @@ async function runScan(scanId: number, accountId: number): Promise<void> {
     if (scan.mode === 'incremental') {
       const stored = getStoredHistoryId(accountId)
       if (stored) {
-        const history = await listHistoryMessageIds(gmail, stored, scan.maxMessages)
+        const history = await listHistoryMessageIds(gmail, stored, scan.maxMessages, scanId)
         if (history.tooOld) {
           // History older than Gmail retains: fall back to a full scan.
           run("UPDATE scans SET mode = 'full' WHERE id = ?", scanId)
@@ -174,7 +174,7 @@ async function runScan(scanId: number, accountId: number): Promise<void> {
       }
     }
     if (!incremental) {
-      ids = await listMessageIds(gmail, buildQuery(scan.months, scan.query), scan.maxMessages)
+      ids = await listMessageIds(gmail, buildQuery(scan.months, scan.query), scan.maxMessages, scanId)
     }
     updateScan(scanId, { messages_fetched: 0, senders_found: 0 })
 
@@ -309,10 +309,16 @@ function buildQuery(months: number, extra: string | null): string {
   return extra ? `${base} ${extra}` : base
 }
 
-async function listMessageIds(gmail: Gmail, query: string, maxMessages: number): Promise<string[]> {
+async function listMessageIds(
+  gmail: Gmail,
+  query: string,
+  maxMessages: number,
+  scanId: number,
+): Promise<string[]> {
   const ids: string[] = []
   let pageToken: string | undefined
   do {
+    if (cancelledScans.has(scanId)) throw new ScanCancelledError()
     const res = await withRetry(() =>
       gmail.users.messages.list({
         userId: 'me',
@@ -339,11 +345,13 @@ async function listHistoryMessageIds(
   gmail: Gmail,
   startHistoryId: string,
   maxMessages: number,
+  scanId: number,
 ): Promise<HistoryResult> {
   const ids = new Set<string>()
   let pageToken: string | undefined
   try {
     do {
+      if (cancelledScans.has(scanId)) throw new ScanCancelledError()
       const res = await withRetry(() =>
         gmail.users.history.list({
           userId: 'me',
