@@ -1,17 +1,21 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Classification, ClassificationStatus, FilterPlan, Label } from '../../shared/types.ts'
+import type { Classification, ClassificationStatus, FilterPlan, Label, Scan } from '../../shared/types.ts'
 import { Api } from '../api.ts'
 import { Badge, Button, Card, ErrorBanner, Input, Select, Spinner, Toggle } from './ui.tsx'
 
 export function ReviewPanel({
   scanId,
+  scans,
   labels,
   filterDefaults,
+  onSelectScan,
   onGoToRules,
 }: {
   scanId: number | null
+  scans: Scan[]
   labels: Label[]
   filterDefaults: { archive: boolean; markRead: boolean; neverSpam: boolean; applyToExisting: boolean }
+  onSelectScan: (id: number) => void
   onGoToRules: () => void
 }) {
   const [items, setItems] = useState<Classification[]>([])
@@ -177,6 +181,23 @@ export function ReviewPanel({
           </div>
         }
       >
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Scan
+          </span>
+          <Select
+            value={scanId}
+            onChange={(e) => onSelectScan(Number(e.target.value))}
+            className="max-w-sm"
+          >
+            {scans.map((scan) => (
+              <option key={scan.id} value={scan.id}>
+                #{scan.id} · {scan.status} · {scan.sendersFound} senders
+              </option>
+            ))}
+          </Select>
+        </div>
+
         <div className="mb-4 flex flex-wrap gap-2 text-sm">
           <Badge tone="green">{accepted} accepted</Badge>
           <Badge tone="amber">{items.length - accepted - rejected} pending</Badge>

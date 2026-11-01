@@ -74,7 +74,9 @@ export function App() {
       setScans(scansRes.scans)
       setRules(rulesRes.rules)
       setActiveScanId((current) => {
-        if (current && scansRes.scans.some((s) => s.id === current)) return current
+        const currentScan = scansRes.scans.find((s) => s.id === current)
+        // Never keep a cancelled/error scan selected when a completed one exists.
+        if (currentScan?.status === 'done') return current
         const latestDone = scansRes.scans.find((s) => s.status === 'done')
         return latestDone?.id ?? scansRes.scans[0]?.id ?? null
       })
@@ -240,8 +242,10 @@ export function App() {
         {tab === 'review' && connected && (
           <ReviewPanel
             scanId={activeScanId}
+            scans={scans}
             labels={labels}
             filterDefaults={filterDefaults}
+            onSelectScan={setActiveScanId}
             onGoToRules={() => setTab('rules')}
           />
         )}
