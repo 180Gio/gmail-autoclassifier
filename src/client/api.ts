@@ -2,6 +2,7 @@ import type {
   Analytics,
   Classification,
   ClassificationStatus,
+  ConfigExport,
   FilterPlan,
   GmailFilter,
   Label,
@@ -120,4 +121,11 @@ export const Api = {
     }),
 
   analytics: () => request<Analytics>('/api/analytics'),
+
+  exportConfig: () => request<ConfigExport>('/api/config/export'),
+  importConfig: (data: unknown) =>
+    request<{ labelsImported: number; rulesImported: number }>('/api/config/import', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 }

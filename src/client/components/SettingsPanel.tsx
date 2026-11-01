@@ -155,7 +155,87 @@ export function SettingsPanel({
         </Button>
         {testResult && <span className="text-sm text-slate-600 dark:text-slate-300">{testResult}</span>}
       </div>
+
+      <BackupCard onSaved={onSaved} />
     </div>
+  )
+}
+
+function BackupCard({ onSaved }: { onSaved: (settings: SettingView[]) => void }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+
+  async function exportConfig() {
+    setBusy(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const data = await Api.exportConfig()
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `gmail-autoclassifier-${new Date().toISOString().slice(0, 10)}.json`
+      anchor.click()
+      URL.revokeObjectURL(url)
+      setMessage('Configuration exported.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function importFile(file: File) {
+    setBusy(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const parsed = JSON.parse(await file.text()) as unknown
+      const res = await Api.importConfig(parsed)
+      const settingsRes = await Api.settings()
+      onSaved(settingsRes.settings)
+      setMessage(
+        `Imported ${res.labelsImported} labels and ${res.rulesImported} historical rules. Secrets were not imported.`,
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card title="Backup & restore">
+      <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
+        Export label descriptions, rule history and non-secret settings as JSON. Secrets, tokens and
+        Gmail filters are never exported. Import restores labels/settings and keeps rules as history
+        (it does not create Gmail filters).
+      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button onClick={exportConfig} disabled={busy}>
+          Export JSON
+        </Button>
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 bg-white/70 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-white dark:border-white/15 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10">
+          Import JSON
+          <input
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) void importFile(file)
+              e.target.value = ''
+            }}
+          />
+        </label>
+      </div>
+      <div className="mt-3 space-y-2">
+        <ErrorBanner error={error} />
+        <SuccessBanner message={message} />
+      </div>
+    </Card>
   )
 }
 

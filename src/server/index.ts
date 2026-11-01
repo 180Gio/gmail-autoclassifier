@@ -6,6 +6,7 @@ import { IS_PROD, HOST, PORT, SESSION_SECRET, WEB_ORIGIN } from './env.ts'
 import { errorHandler, notFound } from './http.ts'
 import { cleanupStaleScans } from './gmail/scan.ts'
 import { analyticsRouter } from './routes/analytics.ts'
+import { configRouter } from './routes/config.ts'
 import { authRouter } from './routes/auth.ts'
 import { labelsRouter } from './routes/labels.ts'
 import { rulesRouter } from './routes/rules.ts'
@@ -37,6 +38,7 @@ app.use(
   scansRouter,
   rulesRouter,
   analyticsRouter,
+  configRouter,
 )
 app.use('/api', notFound)
 

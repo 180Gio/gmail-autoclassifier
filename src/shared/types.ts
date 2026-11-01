@@ -157,6 +157,24 @@ export interface Analytics {
   labels: LabelStat[]
 }
 
+/** Portable backup of non-secret configuration. */
+export interface ConfigExport {
+  app: 'gmail-autoclassifier'
+  version: 1
+  exportedAt: string
+  labels: Array<{ name: string; description: string; kind: string }>
+  rules: Array<{
+    labelNames: string[]
+    senderEmail: string | null
+    query: string | null
+    actions: RuleActions
+    status: string
+    createdAt: string
+  }>
+  /** Non-secret settings only. */
+  settings: Record<string, string>
+}
+
 export type SettingType = 'string' | 'secret' | 'number' | 'boolean' | 'select'
 
 export interface SettingDefinition {
