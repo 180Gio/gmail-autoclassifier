@@ -2,8 +2,9 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import express from 'express'
 import { getDb } from './db.ts'
-import { IS_PROD, HOST, PORT, WEB_ORIGIN } from './env.ts'
+import { IS_PROD, HOST, PORT, SESSION_SECRET, WEB_ORIGIN } from './env.ts'
 import { errorHandler, notFound } from './http.ts'
+import { cleanupStaleScans } from './gmail/scan.ts'
 import { authRouter } from './routes/auth.ts'
 import { labelsRouter } from './routes/labels.ts'
 import { rulesRouter } from './routes/rules.ts'
@@ -49,6 +50,13 @@ if (existsSync(clientDir)) {
 app.use(errorHandler)
 
 getDb()
+cleanupStaleScans()
+
+if (SESSION_SECRET === 'change-me-in-production') {
+  console.warn(
+    '[security] SESSION_SECRET is still the default. Set a long random value in .env — it encrypts stored secrets.',
+  )
+}
 
 const server = app.listen(PORT, HOST, () => {
   const mode = IS_PROD ? 'production' : 'development'

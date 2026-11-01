@@ -11,7 +11,7 @@ import {
 import { HttpError, requireAccount } from '../http.ts'
 import { applyRules, listRules, type ApplyOptions } from '../gmail/apply.ts'
 import { listLabels } from '../gmail/labels.ts'
-import { getScan, getSenders, listScans, startScan } from '../gmail/scan.ts'
+import { getScan, getSenders, listScans, startScan, cancelScan } from '../gmail/scan.ts'
 import { getAiProviderId, getBool, getSetting } from '../settings.ts'
 
 export const scansRouter: Router = Router()
@@ -47,6 +47,14 @@ function requireScan(scanId: number, accountId: number) {
 scansRouter.get('/scans/:id', (req, res) => {
   const account = requireAccount()
   res.json({ scan: requireScan(Number(req.params.id), account.id) })
+})
+
+scansRouter.post('/scans/:id/cancel', (req, res) => {
+  const account = requireAccount()
+  const scan = requireScan(Number(req.params.id), account.id)
+  if (scan.status !== 'running') throw new HttpError(409, 'Scan is not running.')
+  cancelScan(scan.id)
+  res.json({ scan: getScan(scan.id) })
 })
 
 scansRouter.get('/scans/:id/senders', (req, res) => {

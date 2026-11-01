@@ -60,6 +60,8 @@ export const Api = {
   createScan: (input: { months: number; maxMessages: number; query?: string; incremental?: boolean }) =>
     request<{ scan: Scan }>('/api/scans', { method: 'POST', body: JSON.stringify(input) }),
   scan: (id: number) => request<{ scan: Scan }>(`/api/scans/${id}`),
+  cancelScan: (id: number) =>
+    request<{ scan: Scan }>(`/api/scans/${id}/cancel`, { method: 'POST' }),
   senders: (id: number) => request<{ senders: Sender[] }>(`/api/scans/${id}/senders`),
   classifications: (id: number) =>
     request<{ classifications: Classification[] }>(`/api/scans/${id}/classifications`),

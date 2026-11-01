@@ -26,12 +26,13 @@ export interface Label {
 export interface Scan {
   id: number
   accountId: number
-  status: 'running' | 'done' | 'error'
+  status: 'running' | 'done' | 'error' | 'cancelled'
   mode: 'full' | 'incremental'
   query: string | null
   months: number
   maxMessages: number
   messagesFetched: number
+  messagesSkipped: number
   sendersFound: number
   error: string | null
   startedAt: string

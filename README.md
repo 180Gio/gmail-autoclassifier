@@ -324,6 +324,8 @@ and read all configuration through `getSetting(...)`.
   days** for apps in Testing status; reconnect when that happens, or publish the
   app (unverified is fine for personal use) to get longer-lived tokens.
   Distributing the app publicly would require Google's security assessment.
+  If Google ever reports `invalid_grant` (authorization expired or revoked), use
+  **Reconnect** in the header to re-authorize; existing data is kept.
 
 ## Project structure
 

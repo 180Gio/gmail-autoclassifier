@@ -2,7 +2,7 @@ import type { Scan, Sender } from '../../shared/types.ts'
 import { all, get, nowIso, run } from '../db.ts'
 import { getNumber } from '../settings.ts'
 import { getGmail, type Gmail } from './oauth.ts'
-import { isQuotaError, withRetry } from './retry.ts'
+import { isAuthError, isQuotaError, withRetry } from './retry.ts'
 import { setGmailRequestsPerSecond } from './scheduler.ts'
 
 interface ScanRow {
@@ -14,6 +14,7 @@ interface ScanRow {
   months: number
   max_messages: number
   messages_fetched: number
+  messages_skipped: number
   senders_found: number
   error: string | null
   started_at: string
@@ -30,6 +31,7 @@ function rowToScan(row: ScanRow): Scan {
     months: row.months,
     maxMessages: row.max_messages,
     messagesFetched: row.messages_fetched,
+    messagesSkipped: row.messages_skipped,
     sendersFound: row.senders_found,
     error: row.error,
     startedAt: row.started_at,
@@ -46,6 +48,27 @@ export interface StartScanOptions {
 }
 
 const runningScans = new Set<number>()
+const cancelledScans = new Set<number>()
+
+class ScanCancelledError extends Error {
+  constructor() {
+    super('Scan cancelled.')
+  }
+}
+
+/** Ask a running scan to stop at the next message. */
+export function cancelScan(scanId: number): void {
+  cancelledScans.add(scanId)
+}
+
+/** On startup, any scan still marked "running" was interrupted by a restart. */
+export function cleanupStaleScans(): void {
+  run(
+    "UPDATE scans SET status = 'error', error = ?, finished_at = ? WHERE status = 'running'",
+    'Interrupted by a server restart. Start a new scan.',
+    nowIso(),
+  )
+}
 
 export function getScan(scanId: number): Scan | null {
   const row = get<ScanRow>('SELECT * FROM scans WHERE id = ?', scanId)
@@ -160,16 +183,32 @@ async function runScan(scanId: number, accountId: number): Promise<void> {
     // from the previous scan to keep the picture complete.
     if (incremental) seedFromPreviousScan(aggregated, accountId)
     let fetched = 0
+    let skipped = 0
     // Keep concurrency low by default: Gmail's per-user quota is easy to trip
     // with many parallel `messages.get` calls on large scans.
     const concurrency = Math.max(1, Math.min(16, getNumber('scan.concurrency', 4)))
 
     await mapPool(ids, concurrency, async (id) => {
-      const message = await getMetadata(gmail, id)
-      if (message) aggregate(aggregated, message)
-      fetched += 1
-      if (fetched % 50 === 0) {
-        updateScan(scanId, { messages_fetched: fetched })
+      if (cancelledScans.has(scanId)) throw new ScanCancelledError()
+      try {
+        const message = await getMetadata(gmail, id)
+        if (message) aggregate(aggregated, message)
+      } catch (error) {
+        // A single deleted/inaccessible message must not abort the whole scan.
+        // Quota errors are fatal for this run (the retry already backed off).
+        if (isQuotaError(error)) throw error
+        skipped += 1
+        if (skipped <= 5) {
+          console.warn(
+            `[scan] skipping message ${id}:`,
+            error instanceof Error ? error.message : String(error),
+          )
+        }
+      } finally {
+        fetched += 1
+        if (fetched % 50 === 0) {
+          updateScan(scanId, { messages_fetched: fetched, messages_skipped: skipped })
+        }
       }
     })
 
@@ -196,6 +235,7 @@ async function runScan(scanId: number, accountId: number): Promise<void> {
     updateScan(scanId, {
       status: 'done',
       messages_fetched: fetched,
+      messages_skipped: skipped,
       senders_found: rows.length,
       finished_at: nowIso(),
     })
@@ -203,22 +243,35 @@ async function runScan(scanId: number, accountId: number): Promise<void> {
     // Store the history id captured at the start so nothing is missed.
     if (currentHistoryId) setStoredHistoryId(accountId, currentHistoryId)
   } catch (error) {
+    if (error instanceof ScanCancelledError) {
+      run(
+        "UPDATE scans SET status = 'cancelled', finished_at = ? WHERE id = ?",
+        nowIso(),
+        scanId,
+      )
+      return
+    }
     const base = error instanceof Error ? error.message : String(error)
-    const message = isQuotaError(error)
-      ? `${base} — Gmail per-user quota reached. Wait a minute, then lower "Max messages" or "Concurrency" and scan again.`
-      : base
+    const message = isAuthError(error)
+      ? 'Google authorization expired or was revoked. Reconnect your Gmail account, then scan again.'
+      : isQuotaError(error)
+        ? `${base} — Gmail per-user quota reached. Wait a minute, then lower "Max messages" or "Concurrency" and scan again.`
+        : base
     run(
       "UPDATE scans SET status = 'error', error = ?, finished_at = ? WHERE id = ?",
       message,
       nowIso(),
       scanId,
     )
+  } finally {
+    cancelledScans.delete(scanId)
   }
 }
 
 interface ScanPatch {
   status?: string
   messages_fetched?: number
+  messages_skipped?: number
   senders_found?: number
   finished_at?: string
 }
@@ -233,6 +286,10 @@ function updateScan(scanId: number, patch: ScanPatch): void {
   if (patch.messages_fetched !== undefined) {
     fields.push('messages_fetched = ?')
     params.push(patch.messages_fetched)
+  }
+  if (patch.messages_skipped !== undefined) {
+    fields.push('messages_skipped = ?')
+    params.push(patch.messages_skipped)
   }
   if (patch.senders_found !== undefined) {
     fields.push('senders_found = ?')

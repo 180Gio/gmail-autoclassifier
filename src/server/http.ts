@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express'
 import type { Account } from '../shared/types.ts'
 import { getAccount } from './gmail/oauth.ts'
+import { isAuthError } from './gmail/retry.ts'
 
 export class HttpError extends Error {
   constructor(
@@ -24,6 +25,14 @@ export function notFound(_req: Request, res: Response): void {
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction): void {
+  if (isAuthError(err)) {
+    res.status(401).json({
+      error:
+        'Google authorization expired or was revoked. Reconnect your Gmail account, then try again.',
+      code: 'REAUTH_REQUIRED',
+    })
+    return
+  }
   const withStatus = err as { status?: number; statusCode?: number }
   const status =
     err instanceof HttpError ? err.status : (withStatus.status ?? withStatus.statusCode ?? 500)

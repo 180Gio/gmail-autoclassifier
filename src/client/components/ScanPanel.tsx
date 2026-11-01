@@ -66,6 +66,20 @@ export function ScanPanel({
     }
   }
 
+  async function cancel() {
+    if (!active) return
+    setBusy(true)
+    setError(null)
+    try {
+      await Api.cancelScan(active.id)
+      onScansChange((await Api.scans()).scans)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="space-y-5">
       <ErrorBanner error={error} />
@@ -115,7 +129,17 @@ export function ScanPanel({
             <span>
               {active.messagesFetched} messages processed · {active.sendersFound} senders found
             </span>
+            {active.messagesSkipped > 0 && (
+              <span className="text-amber-600 dark:text-amber-400">
+                {active.messagesSkipped} skipped
+              </span>
+            )}
             {active.status === 'running' && <Spinner />}
+            {active.status === 'running' && (
+              <Button variant="danger" onClick={cancel} disabled={busy}>
+                Cancel scan
+              </Button>
+            )}
           </div>
           {active.error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{active.error}</p>}
           {active.status === 'done' && (
@@ -166,5 +190,6 @@ export function ScanPanel({
 function StatusBadge({ status }: { status: Scan['status'] }) {
   if (status === 'done') return <Badge tone="green">done</Badge>
   if (status === 'running') return <Badge tone="amber">running</Badge>
+  if (status === 'cancelled') return <Badge tone="slate">cancelled</Badge>
   return <Badge tone="red">error</Badge>
 }

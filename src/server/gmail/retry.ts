@@ -97,6 +97,30 @@ export function isQuotaError(error: unknown): boolean {
   return /quota|rate limit|userRateLimitExceeded/i.test(message)
 }
 
+/** Google OAuth token expired or revoked (needs the user to reconnect). */
+export function isAuthError(error: unknown): boolean {
+  const err = error as {
+    code?: number | string
+    response?: { status?: number; data?: unknown }
+    message?: string
+  }
+  const status = Number(err?.response?.status ?? err?.code)
+  const message = `${err?.message ?? ''} ${safeStringify(err?.response?.data)}`
+  if (/invalid_grant|invalid_token|token has been expired|revoked/i.test(message)) return true
+  // A 401 coming from a Google response (our own HttpError has no `response`).
+  return status === 401 && Boolean(err?.response)
+}
+
+function safeStringify(value: unknown): string {
+  if (value === undefined || value === null) return ''
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return ''
+  }
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }

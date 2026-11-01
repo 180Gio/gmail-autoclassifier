@@ -62,6 +62,7 @@ function migrate(db: DatabaseSync): void {
       months           INTEGER NOT NULL DEFAULT 6,
       max_messages     INTEGER NOT NULL DEFAULT 2000,
       messages_fetched INTEGER NOT NULL DEFAULT 0,
+      messages_skipped INTEGER NOT NULL DEFAULT 0,
       senders_found    INTEGER NOT NULL DEFAULT 0,
       error            TEXT,
       started_at       TEXT NOT NULL,
@@ -122,6 +123,7 @@ function migrate(db: DatabaseSync): void {
   // Columns added after the first release.
   ensureColumn(db, 'accounts', 'last_history_id', 'TEXT')
   ensureColumn(db, 'scans', 'mode', "TEXT NOT NULL DEFAULT 'full'")
+  ensureColumn(db, 'scans', 'messages_skipped', 'INTEGER NOT NULL DEFAULT 0')
 }
 
 function ensureColumn(db: DatabaseSync, table: string, column: string, ddl: string): void {

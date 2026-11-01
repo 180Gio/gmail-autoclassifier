@@ -172,6 +172,11 @@ export function App() {
             )}
             <ThemeToggle theme={theme} onToggle={toggle} />
             {connected && (
+              <Button variant="ghost" onClick={connect}>
+                Reconnect
+              </Button>
+            )}
+            {connected && (
               <Button variant="ghost" onClick={disconnect}>
                 Disconnect
               </Button>
