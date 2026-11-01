@@ -112,6 +112,8 @@ export interface FilterPlanOptions {
   markRead: boolean
   neverSpam: boolean
   applyToExisting: boolean
+  /** Labels whose senders should be grouped by domain (`from:@domain`). */
+  domainLabels: string[]
 }
 
 /** One Gmail filter that would be created by an apply. */

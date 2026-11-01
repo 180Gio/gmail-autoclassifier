@@ -13,6 +13,8 @@ export interface ApplyOptions {
   markRead: boolean
   neverSpam: boolean
   applyToExisting: boolean
+  /** Labels whose senders should be grouped by domain (`from:@domain`). */
+  domainLabels: string[]
 }
 
 export interface ApplyResult {
@@ -92,13 +94,16 @@ export interface FilterGroup {
 export function planFilters(
   mappings: AcceptedMapping[],
   maxSendersPerFilter: number,
+  domainLabels: string[] = [],
 ): FilterGroup[] {
   const maxPerFilter = Math.max(1, Math.floor(maxSendersPerFilter) || 50)
+  const domainSet = new Set(domainLabels)
   const byLabel = new Map<string, string[]>()
   for (const mapping of mappings) {
     for (const label of mapping.labels) {
+      const value = domainSet.has(label) ? toDomain(mapping.senderEmail) : mapping.senderEmail
       const list = byLabel.get(label) ?? []
-      list.push(mapping.senderEmail)
+      list.push(value)
       byLabel.set(label, list)
     }
   }
@@ -112,6 +117,12 @@ export function planFilters(
     }
   }
   return groups
+}
+
+/** Turn `someone@sub.example.com` into `@sub.example.com`. */
+export function toDomain(email: string): string {
+  const at = email.lastIndexOf('@')
+  return at >= 0 ? `@${email.slice(at + 1).toLowerCase()}` : email
 }
 
 /**
@@ -132,7 +143,7 @@ export async function applyRules(
   const result: ApplyResult = { rulesCreated: 0, messagesBackfilled: 0, errors: [] }
 
   const maxPerFilter = getNumber('filters.maxSendersPerFilter', 50)
-  const groups = planFilters(mappings, maxPerFilter)
+  const groups = planFilters(mappings, maxPerFilter, options.domainLabels)
   if (groups.length === 0) return result
 
   const existing = await loadExisting(accountId)
@@ -211,7 +222,7 @@ export async function planApply(
   options: ApplyOptions,
 ): Promise<FilterPlan> {
   const maxPerFilter = getNumber('filters.maxSendersPerFilter', 50)
-  const groups = planFilters(mappings, maxPerFilter)
+  const groups = planFilters(mappings, maxPerFilter, options.domainLabels)
   const existing = await loadExisting(accountId)
   const removeLabelIds = buildRemoveLabelIds(options)
 

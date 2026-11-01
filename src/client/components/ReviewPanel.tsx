@@ -21,6 +21,7 @@ export function ReviewPanel({
   const [options, setOptions] = useState(filterDefaults)
   const [applyResult, setApplyResult] = useState<string | null>(null)
   const [plan, setPlan] = useState<FilterPlan | null>(null)
+  const [domainLabels, setDomainLabels] = useState<string[]>([])
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'accepted' | 'rejected'>('all')
   const [labelFilter, setLabelFilter] = useState('')
@@ -92,7 +93,7 @@ export function ReviewPanel({
     guard(async () => {
       if (!scanId) return
       setApplyResult(null)
-      setPlan((await Api.plan(scanId, options)).plan)
+      setPlan((await Api.plan(scanId, { ...options, domainLabels })).plan)
     })
 
   function updateOptions(patch: Partial<typeof options>) {
@@ -100,10 +101,21 @@ export function ReviewPanel({
     setPlan(null)
   }
 
+  function toggleDomainLabel(label: string) {
+    const next = domainLabels.includes(label)
+      ? domainLabels.filter((l) => l !== label)
+      : [...domainLabels, label]
+    setDomainLabels(next)
+    if (!scanId) return
+    void guard(async () => {
+      setPlan((await Api.plan(scanId, { ...options, domainLabels: next })).plan)
+    })
+  }
+
   const apply = () =>
     guard(async () => {
       if (!scanId) return
-      const res = await Api.apply(scanId, options)
+      const res = await Api.apply(scanId, { ...options, domainLabels })
       setPlan(null)
       setApplyResult(
         `Created ${res.result.rulesCreated} filters` +
@@ -300,7 +312,13 @@ export function ReviewPanel({
             </Button>
           )}
         </div>
-        {plan && <PlanPreview plan={plan} />}
+        {plan && (
+          <PlanPreview
+            plan={plan}
+            domainLabels={domainLabels}
+            onToggleDomain={toggleDomainLabel}
+          />
+        )}
         <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
           Note: Gmail filters only affect future messages unless backfill is enabled.
         </p>
@@ -309,7 +327,15 @@ export function ReviewPanel({
   )
 }
 
-function PlanPreview({ plan }: { plan: FilterPlan }) {
+function PlanPreview({
+  plan,
+  domainLabels,
+  onToggleDomain,
+}: {
+  plan: FilterPlan
+  domainLabels: string[]
+  onToggleDomain: (label: string) => void
+}) {
   return (
     <div className="mt-4 space-y-3 rounded-xl border border-indigo-400/30 bg-indigo-500/5 p-3">
       <div className="flex flex-wrap gap-2">
@@ -332,6 +358,17 @@ function PlanPreview({ plan }: { plan: FilterPlan }) {
               {group.coveredSenders.length > 0 && (
                 <Badge tone="amber">{group.coveredSenders.length} already covered</Badge>
               )}
+              <button
+                type="button"
+                onClick={() => onToggleDomain(group.label)}
+                className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
+                  domainLabels.includes(group.label)
+                    ? 'border-indigo-500 bg-indigo-500/15 text-indigo-700 dark:text-indigo-300'
+                    : 'border-slate-300 text-slate-500 hover:border-slate-400 dark:border-white/15 dark:text-slate-400'
+                }`}
+              >
+                {domainLabels.includes(group.label) ? '✓ by domain' : 'group by domain'}
+              </button>
             </div>
             <div className="mt-1 truncate font-mono text-[11px] text-slate-400 dark:text-slate-500">
               from: {group.fromQuery}

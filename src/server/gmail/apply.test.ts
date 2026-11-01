@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseFilterSenders, planFilters } from './apply.ts'
+import { parseFilterSenders, planFilters, toDomain } from './apply.ts'
 
 const mappings = [
   { senderEmail: 'a@x.com', labels: ['Newsletters'] },
@@ -30,6 +30,32 @@ describe('planFilters', () => {
 
   it('falls back to a sane chunk size for invalid input', () => {
     expect(planFilters(mappings, 0).length).toBeGreaterThan(0)
+  })
+
+  it('groups by domain for the selected labels', () => {
+    const groups = planFilters(
+      [
+        { senderEmail: 'a@news.example.com', labels: ['News'] },
+        { senderEmail: 'b@news.example.com', labels: ['News'] },
+        { senderEmail: 'c@other.com', labels: ['News'] },
+        { senderEmail: 'a@news.example.com', labels: ['Other'] },
+      ],
+      50,
+      ['News'],
+    )
+    const news = groups.find((g) => g.label === 'News')
+    expect(news?.senders).toEqual(['@news.example.com', '@other.com'])
+    expect(news?.fromQuery).toBe('@news.example.com OR @other.com')
+    // Labels not selected keep individual senders.
+    const other = groups.find((g) => g.label === 'Other')
+    expect(other?.senders).toEqual(['a@news.example.com'])
+  })
+})
+
+describe('toDomain', () => {
+  it('extracts and lowercases the domain', () => {
+    expect(toDomain('Someone@Sub.Example.com')).toBe('@sub.example.com')
+    expect(toDomain('no-at-sign')).toBe('no-at-sign')
   })
 })
 

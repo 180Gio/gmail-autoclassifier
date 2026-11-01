@@ -80,7 +80,13 @@ export const Api = {
     }),
   apply: (
     scanId: number,
-    options: { archive: boolean; markRead: boolean; neverSpam: boolean; applyToExisting: boolean },
+    options: {
+      archive: boolean
+      markRead: boolean
+      neverSpam: boolean
+      applyToExisting: boolean
+      domainLabels: string[]
+    },
   ) =>
     request<{ result: { rulesCreated: number; messagesBackfilled: number; errors: Array<{ sender: string; message: string }> }; rules: Rule[] }>(
       `/api/scans/${scanId}/apply`,
@@ -89,7 +95,13 @@ export const Api = {
 
   plan: (
     scanId: number,
-    options: { archive: boolean; markRead: boolean; neverSpam: boolean; applyToExisting: boolean },
+    options: {
+      archive: boolean
+      markRead: boolean
+      neverSpam: boolean
+      applyToExisting: boolean
+      domainLabels: string[]
+    },
   ) =>
     request<{ plan: FilterPlan }>(`/api/scans/${scanId}/plan`, {
       method: 'POST',

@@ -148,6 +148,7 @@ function readApplyOptions(body: Partial<ApplyOptions>): ApplyOptions {
     markRead: body.markRead ?? getBool('filters.markRead'),
     neverSpam: body.neverSpam ?? getBool('filters.neverSpam'),
     applyToExisting: body.applyToExisting ?? getBool('filters.applyToExisting'),
+    domainLabels: Array.isArray(body.domainLabels) ? body.domainLabels.map(String) : [],
   }
 }
 
