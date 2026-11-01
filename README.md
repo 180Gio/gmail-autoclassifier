@@ -13,7 +13,9 @@ and only writes Gmail filters after you explicitly confirm.
 > encrypted in a local SQLite file. No third-party server is involved beyond the
 > AI provider you choose.
 
-![Gmail AutoClassifier](docs/screenshot-dark.png)
+| Overview (dark) | Review | Analytics |
+| --- | --- | --- |
+| ![Overview](docs/screenshot-dark.png) | ![Review](docs/screenshot-review.png) | ![Analytics](docs/screenshot-analytics.png) |
 
 ---
 
@@ -35,6 +37,7 @@ and only writes Gmail filters after you explicitly confirm.
 - [Project structure](#project-structure)
 - [Scripts](#scripts)
 - [Roadmap](#roadmap)
+- [Contributing](#contributing)
 - [License](#license)
 
 ---
@@ -60,6 +63,12 @@ and only writes Gmail filters after you explicitly confirm.
 - Keeps a list of the filters it created, and lets you delete them from the app.
 - Lists **every filter in Gmail** (including ones created outside the app) so you
   can review and remove them.
+- **Previews the exact filters** (grouped by label, optionally by domain) before
+  writing anything to Gmail.
+- Shows **sender analytics**: volume, unread, top domains and accepted-label
+  distribution.
+- Exports/imports labels, rule history and non-secret settings (never secrets).
+- Ships with **Vitest unit tests**, run in CI.
 - Modern glass UI with light/dark mode, and a settings screen that shows only the
   fields of the selected AI provider.
 
@@ -186,6 +195,10 @@ rest. Changing it invalidates stored secrets.
    label (`from: a OR b OR …`), and (if enabled) backfills existing mail.
 5. **Rules** — inspect every filter in Gmail (including ones created outside the
    app) and delete them if needed.
+6. **Analytics** — see volume, unread, top domains and the accepted-label
+   distribution for the latest scan.
+7. **Settings → Backup & restore** — export/import labels, rule history and
+   non-secret settings as JSON.
 
 ## AI providers
 
@@ -334,26 +347,31 @@ src/
   shared/types.ts          Types shared by client and server
   server/
     index.ts               Express app
-    db.ts                  SQLite (node:sqlite) schema and helpers
+    db.ts                  SQLite (node:sqlite) schema + migrations
     settings.ts            Setting definitions + resolution (UI > env > default)
     crypto.ts              AES-256-GCM for secrets
     classifications.ts     Review-state persistence
-    http.ts                Errors and shared helpers
+    http.ts                Errors (incl. reauth) and shared helpers
     ai/
       types.ts             AiProvider interface
       index.ts             Provider registry
       classify.ts          Prompt building, chunking, JSON parsing
-      providers/           opencode.ts · openai.ts · mock.ts
+      providers/           opencode.ts · opencode-go.ts · openai.ts · mock.ts
     gmail/
       oauth.ts             OAuth flow, account, authorized clients
       labels.ts            Label import/creation
-      scan.ts              Sender extraction
-      apply.ts             Filters + backfill + rules
-    routes/                status · settings · auth · labels · scans · rules
+      scan.ts              Sender extraction, incremental scans, cancel
+      apply.ts             Filter planning/creation, backfill, rules
+      filters.ts           List/delete filters that exist in Gmail
+      retry.ts             Retry/backoff + auth/quota detection
+      scheduler.ts         Global Gmail request throttle
+    routes/                status · settings · auth · labels · scans · rules · analytics · config
   client/
     App.tsx                Shell, navigation, state
     api.ts                 Typed API client
-    components/            Panels + UI primitives
+    useTheme.ts            Light/dark theme
+    components/            Panels (labels, scan, review, analytics, rules, settings) + UI
+  **/*.test.ts             Vitest unit tests
 ```
 
 ## Scripts
@@ -361,7 +379,7 @@ src/
 | Command | Description |
 | --- | --- |
 | `npm run dev` | Run API + web dev server together |
-| `npm run dev:api` | API only (`tsx watch`) |
+| `npm run dev:api` | API only (`nodemon` with polling) |
 | `npm run dev:web` | Vite only |
 | `npm run build` | Build the client into `dist/client` |
 | `npm test` | Run the unit tests (Vitest) |
@@ -380,11 +398,16 @@ src/
 
 ## Roadmap
 
-- Domain-level rules (group every sender of a domain).
-- Sender analytics (volume, unread over time).
-- Import/export of rules and label descriptions.
-- Duplicate filter detection against existing Gmail filters.
+- Multi-account support (the app currently manages one Gmail account).
 - Optional local embeddings for cheaper sender clustering.
+- Virtualized review list for very large mailboxes.
+- Release automation and changelog.
+
+## Contributing
+
+Contributions are welcome — especially new AI providers. See
+[CONTRIBUTING.md](./CONTRIBUTING.md). Please run `npm test` and
+`npm run typecheck` before opening a pull request.
 
 ## License
 
