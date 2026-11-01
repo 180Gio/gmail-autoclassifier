@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Classification, ClassificationStatus, FilterPlan, Label } from '../../shared/types.ts'
 import { Api } from '../api.ts'
-import { Badge, Button, Card, ErrorBanner, Spinner, Toggle } from './ui.tsx'
+import { Badge, Button, Card, ErrorBanner, Input, Select, Spinner, Toggle } from './ui.tsx'
 
 export function ReviewPanel({
   scanId,
@@ -21,6 +21,10 @@ export function ReviewPanel({
   const [options, setOptions] = useState(filterDefaults)
   const [applyResult, setApplyResult] = useState<string | null>(null)
   const [plan, setPlan] = useState<FilterPlan | null>(null)
+  const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'accepted' | 'rejected'>('all')
+  const [labelFilter, setLabelFilter] = useState('')
+  const [page, setPage] = useState(1)
 
   const userLabels = labels.filter((l) => l.kind === 'user').map((l) => l.name)
 
@@ -121,6 +125,26 @@ export function ReviewPanel({
   const accepted = items.filter((i) => i.status === 'accepted' || i.status === 'edited').length
   const rejected = items.filter((i) => i.status === 'rejected').length
 
+  const PAGE_SIZE = 50
+  const filtered = items.filter((row) => {
+    const q = query.trim().toLowerCase()
+    if (q) {
+      const haystack =
+        `${row.senderEmail} ${row.sender?.displayName ?? ''} ${row.sender?.domain ?? ''}`.toLowerCase()
+      if (!haystack.includes(q)) return false
+    }
+    if (labelFilter && !row.labels.includes(labelFilter)) return false
+    if (statusFilter === 'pending' && row.status !== 'suggested') return false
+    if (statusFilter === 'accepted' && !(row.status === 'accepted' || row.status === 'edited')) {
+      return false
+    }
+    if (statusFilter === 'rejected' && row.status !== 'rejected') return false
+    return true
+  })
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount)
+  const visible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+
   return (
     <div className="space-y-5">
       <ErrorBanner error={error} />
@@ -147,9 +171,46 @@ export function ReviewPanel({
           <Badge tone="red">{rejected} rejected</Badge>
         </div>
 
+        <div className="mb-4 grid gap-2 md:grid-cols-[1fr_auto_auto]">
+          <Input
+            placeholder="Search sender, name or domain..."
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setPage(1)
+            }}
+          />
+          <Select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value as typeof statusFilter)
+              setPage(1)
+            }}
+          >
+            <option value="all">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="accepted">Accepted</option>
+            <option value="rejected">Rejected</option>
+          </Select>
+          <Select
+            value={labelFilter}
+            onChange={(e) => {
+              setLabelFilter(e.target.value)
+              setPage(1)
+            }}
+          >
+            <option value="">All labels</option>
+            {userLabels.map((label) => (
+              <option key={label} value={label}>
+                {label}
+              </option>
+            ))}
+          </Select>
+        </div>
+
         {loading && <Spinner />}
         <div className="space-y-3">
-          {items.map((row) => (
+          {visible.map((row) => (
             <ReviewRow
               key={row.id}
               row={row}
@@ -160,7 +221,31 @@ export function ReviewPanel({
               onReject={() => setStatus(row, 'rejected')}
             />
           ))}
+          {!loading && filtered.length === 0 && (
+            <p className="text-sm text-slate-400 dark:text-slate-500">
+              No senders match the current filters.
+            </p>
+          )}
         </div>
+
+        {filtered.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+            <span>
+              Showing {visible.length} of {filtered.length} · page {currentPage}/{pageCount}
+            </span>
+            <div className="flex gap-2">
+              <Button onClick={() => setPage(Math.max(1, currentPage - 1))} disabled={currentPage <= 1}>
+                Prev
+              </Button>
+              <Button
+                onClick={() => setPage(Math.min(pageCount, currentPage + 1))}
+                disabled={currentPage >= pageCount}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
       <Card title="Apply to Gmail">
