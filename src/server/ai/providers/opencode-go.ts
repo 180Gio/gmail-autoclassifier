@@ -61,7 +61,18 @@ export function opencodeGoProvider(): AiProvider {
         body: JSON.stringify(body),
       })
       if (!res.ok) {
-        throw new Error(`OpenCode Go request failed (${res.status}): ${await safeText(res)}`)
+        const raw = await safeText(res)
+        if (res.status === 401 || res.status === 403) {
+          throw new Error(
+            `OpenCode Go rejected the credentials (${res.status}). Check that your Go/Go Plus subscription is active and paste a fresh API key from https://opencode.ai/console in Settings. Details: ${raw}`,
+          )
+        }
+        if (res.status === 400 && /model is unavailable/i.test(raw)) {
+          throw new Error(
+            `The model "${model()}" is not available on your OpenCode Go plan. Choose another model in Settings. Details: ${raw}`,
+          )
+        }
+        throw new Error(`OpenCode Go request failed (${res.status}): ${raw}`)
       }
       const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> }
       return json.choices?.[0]?.message?.content ?? ''
