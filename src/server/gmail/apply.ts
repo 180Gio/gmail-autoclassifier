@@ -1,4 +1,4 @@
-import type { Rule, RuleActions } from '../../shared/types.ts'
+import type { FilterPlan, FilterPlanItem, Rule, RuleActions } from '../../shared/types.ts'
 import { all, get, nowIso, run } from '../db.ts'
 import { getNumber } from '../settings.ts'
 import type { AcceptedMapping } from '../classifications.ts'
@@ -79,7 +79,7 @@ export function listRules(accountId: number): Rule[] {
   )
 }
 
-export interface FilterPlanGroup {
+export interface FilterGroup {
   label: string
   senders: string[]
   fromQuery: string
@@ -92,7 +92,7 @@ export interface FilterPlanGroup {
 export function planFilters(
   mappings: AcceptedMapping[],
   maxSendersPerFilter: number,
-): FilterPlanGroup[] {
+): FilterGroup[] {
   const maxPerFilter = Math.max(1, Math.floor(maxSendersPerFilter) || 50)
   const byLabel = new Map<string, string[]>()
   for (const mapping of mappings) {
@@ -103,7 +103,7 @@ export function planFilters(
     }
   }
 
-  const groups: FilterPlanGroup[] = []
+  const groups: FilterGroup[] = []
   for (const [label, sendersRaw] of byLabel) {
     const senders = [...new Set(sendersRaw)]
     for (let i = 0; i < senders.length; i += maxPerFilter) {
@@ -135,7 +135,7 @@ export async function applyRules(
   const groups = planFilters(mappings, maxPerFilter)
   if (groups.length === 0) return result
 
-  const existingFrom = await loadExistingFrom(accountId)
+  const existing = await loadExisting(accountId)
   const removeLabelIds = buildRemoveLabelIds(options)
   const labelIds = new Map<string, string>()
 
@@ -152,7 +152,7 @@ export async function applyRules(
     const { label, senders, fromQuery } = group
     try {
       const labelId = await resolveLabelId(label)
-      if (existingFrom.has(fromQuery)) continue
+      if (existing.fromSet.has(fromQuery)) continue
 
       const filter = await withRetry(() =>
         gmail.users.settings.filters.create({
@@ -182,7 +182,7 @@ export async function applyRules(
         now,
         now,
       )
-      existingFrom.add(fromQuery)
+      existing.fromSet.add(fromQuery)
       result.rulesCreated += 1
 
       if (options.applyToExisting) {
@@ -201,16 +201,68 @@ export async function applyRules(
   return result
 }
 
-async function loadExistingFrom(accountId: number): Promise<Set<string>> {
-  const set = new Set<string>()
-  try {
-    for (const filter of await listGmailFilters(accountId)) {
-      if (filter.from) set.add(filter.from.trim())
+/**
+ * Compute the filters that would be created, without writing anything to Gmail.
+ * Also flags senders already matched by an existing filter (task: avoid overlaps).
+ */
+export async function planApply(
+  accountId: number,
+  mappings: AcceptedMapping[],
+  options: ApplyOptions,
+): Promise<FilterPlan> {
+  const maxPerFilter = getNumber('filters.maxSendersPerFilter', 50)
+  const groups = planFilters(mappings, maxPerFilter)
+  const existing = await loadExisting(accountId)
+  const removeLabelIds = buildRemoveLabelIds(options)
+
+  const covered = new Set<string>()
+  const items: FilterPlanItem[] = groups.map((group) => {
+    const coveredSenders = group.senders.filter((s) => existing.senderSet.has(s.toLowerCase()))
+    for (const sender of coveredSenders) covered.add(sender)
+    return {
+      ...group,
+      alreadyExists: existing.fromSet.has(group.fromQuery),
+      coveredSenders,
     }
-  } catch {
-    // Non-fatal: worst case we try to create a duplicate and Gmail rejects it.
+  })
+
+  return {
+    groups: items,
+    totalSenders: new Set(mappings.map((m) => m.senderEmail)).size,
+    totalFilters: items.length,
+    coveredSenders: covered.size,
+    removeLabelIds,
+    options,
   }
-  return set
+}
+
+/** Extract individual sender addresses from a Gmail filter `from` value (OR list). */
+export function parseFilterSenders(from: string | null): string[] {
+  if (!from) return []
+  return from
+    .split(/\s+OR\s+/i)
+    .map((part) => part.trim().toLowerCase())
+    .filter((email) => email.includes('@'))
+}
+
+interface ExistingFilters {
+  /** Exact `from` criteria already present in Gmail. */
+  fromSet: Set<string>
+  /** Individual sender addresses already matched by existing filters. */
+  senderSet: Set<string>
+}
+
+async function loadExisting(accountId: number): Promise<ExistingFilters> {
+  const fromSet = new Set<string>()
+  const senderSet = new Set<string>()
+  // Do not swallow errors here: if Gmail is unreachable or the token expired,
+  // the plan/apply must fail clearly instead of pretending nothing is covered.
+  for (const filter of await listGmailFilters(accountId)) {
+    if (!filter.from) continue
+    fromSet.add(filter.from.trim())
+    for (const email of parseFilterSenders(filter.from)) senderSet.add(email)
+  }
+  return { fromSet, senderSet }
 }
 
 function buildRemoveLabelIds(options: ApplyOptions): string[] {

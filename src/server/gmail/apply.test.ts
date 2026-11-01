@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { planFilters } from './apply.ts'
+import { parseFilterSenders, planFilters } from './apply.ts'
 
 const mappings = [
   { senderEmail: 'a@x.com', labels: ['Newsletters'] },
@@ -30,5 +30,25 @@ describe('planFilters', () => {
 
   it('falls back to a sane chunk size for invalid input', () => {
     expect(planFilters(mappings, 0).length).toBeGreaterThan(0)
+  })
+})
+
+describe('parseFilterSenders', () => {
+  it('splits an OR list into lowercase addresses', () => {
+    expect(parseFilterSenders('A@X.com OR b@x.com OR  c@x.com')).toEqual([
+      'a@x.com',
+      'b@x.com',
+      'c@x.com',
+    ])
+  })
+
+  it('handles a single address and empty input', () => {
+    expect(parseFilterSenders('a@x.com')).toEqual(['a@x.com'])
+    expect(parseFilterSenders(null)).toEqual([])
+    expect(parseFilterSenders('')).toEqual([])
+  })
+
+  it('ignores non-address parts', () => {
+    expect(parseFilterSenders('not-an-email OR a@x.com')).toEqual(['a@x.com'])
   })
 })

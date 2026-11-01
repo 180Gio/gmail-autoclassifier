@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Classification, ClassificationStatus, Label } from '../../shared/types.ts'
+import type { Classification, ClassificationStatus, FilterPlan, Label } from '../../shared/types.ts'
 import { Api } from '../api.ts'
 import { Badge, Button, Card, ErrorBanner, Spinner, Toggle } from './ui.tsx'
 
@@ -20,6 +20,7 @@ export function ReviewPanel({
   const [error, setError] = useState<string | null>(null)
   const [options, setOptions] = useState(filterDefaults)
   const [applyResult, setApplyResult] = useState<string | null>(null)
+  const [plan, setPlan] = useState<FilterPlan | null>(null)
 
   const userLabels = labels.filter((l) => l.kind === 'user').map((l) => l.name)
 
@@ -61,12 +62,14 @@ export function ReviewPanel({
 
   const setStatus = (row: Classification, status: ClassificationStatus) =>
     guard(async () => {
+      setPlan(null)
       const res = await Api.updateClassification(row.id, { status })
       setItems((prev) => prev.map((r) => (r.id === row.id ? res.classification : r)))
     })
 
   const toggleLabel = (row: Classification, label: string) =>
     guard(async () => {
+      setPlan(null)
       const next = row.labels.includes(label)
         ? row.labels.filter((l) => l !== label)
         : [...row.labels, label]
@@ -77,13 +80,27 @@ export function ReviewPanel({
   const bulk = (status: ClassificationStatus) =>
     guard(async () => {
       if (!scanId) return
+      setPlan(null)
       setItems((await Api.mark(scanId, status)).classifications)
     })
+
+  const preview = () =>
+    guard(async () => {
+      if (!scanId) return
+      setApplyResult(null)
+      setPlan((await Api.plan(scanId, options)).plan)
+    })
+
+  function updateOptions(patch: Partial<typeof options>) {
+    setOptions((current) => ({ ...current, ...patch }))
+    setPlan(null)
+  }
 
   const apply = () =>
     guard(async () => {
       if (!scanId) return
       const res = await Api.apply(scanId, options)
+      setPlan(null)
       setApplyResult(
         `Created ${res.result.rulesCreated} filters` +
           (options.applyToExisting ? ` · ${res.result.messagesBackfilled} messages updated` : '') +
@@ -155,28 +172,40 @@ export function ReviewPanel({
           <Toggle
             label="Archive classified mail (skip inbox)"
             checked={options.archive}
-            onChange={(v) => setOptions({ ...options, archive: v })}
+            onChange={(v) => updateOptions({ archive: v })}
           />
           <Toggle
             label="Mark classified mail as read"
             checked={options.markRead}
-            onChange={(v) => setOptions({ ...options, markRead: v })}
+            onChange={(v) => updateOptions({ markRead: v })}
           />
           <Toggle
             label="Never send classified mail to spam"
             checked={options.neverSpam}
-            onChange={(v) => setOptions({ ...options, neverSpam: v })}
+            onChange={(v) => updateOptions({ neverSpam: v })}
           />
           <Toggle
             label="Also apply to existing mail (backfill)"
             checked={options.applyToExisting}
-            onChange={(v) => setOptions({ ...options, applyToExisting: v })}
+            onChange={(v) => updateOptions({ applyToExisting: v })}
           />
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Button variant="primary" onClick={apply} disabled={busy || accepted === 0}>
-            Apply {accepted} sender(s)
-          </Button>
+          {!plan && (
+            <Button variant="primary" onClick={preview} disabled={busy || accepted === 0}>
+              Preview {accepted} sender(s)
+            </Button>
+          )}
+          {plan && (
+            <>
+              <Button variant="primary" onClick={apply} disabled={busy}>
+                Confirm & create {plan.totalFilters} filter(s)
+              </Button>
+              <Button variant="ghost" onClick={() => setPlan(null)} disabled={busy}>
+                Cancel
+              </Button>
+            </>
+          )}
           {applyResult && (
             <span className="text-sm text-emerald-700 dark:text-emerald-300">{applyResult}</span>
           )}
@@ -186,10 +215,50 @@ export function ReviewPanel({
             </Button>
           )}
         </div>
+        {plan && <PlanPreview plan={plan} />}
         <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
           Note: Gmail filters only affect future messages unless backfill is enabled.
         </p>
       </Card>
+    </div>
+  )
+}
+
+function PlanPreview({ plan }: { plan: FilterPlan }) {
+  return (
+    <div className="mt-4 space-y-3 rounded-xl border border-indigo-400/30 bg-indigo-500/5 p-3">
+      <div className="flex flex-wrap gap-2">
+        <Badge tone="indigo">{plan.totalFilters} filters</Badge>
+        <Badge>{plan.totalSenders} senders</Badge>
+        {plan.coveredSenders > 0 && (
+          <Badge tone="amber">{plan.coveredSenders} already covered</Badge>
+        )}
+        {plan.options.applyToExisting && <Badge tone="amber">backfill existing mail</Badge>}
+      </div>
+      <div className="space-y-2">
+        {plan.groups.map((group, index) => (
+          <div key={`${group.label}-${index}`} className="text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone="indigo">{group.label}</Badge>
+              <span className="text-slate-500 dark:text-slate-400">
+                {group.senders.length} senders
+              </span>
+              {group.alreadyExists && <Badge tone="amber">identical filter exists</Badge>}
+              {group.coveredSenders.length > 0 && (
+                <Badge tone="amber">{group.coveredSenders.length} already covered</Badge>
+              )}
+            </div>
+            <div className="mt-1 truncate font-mono text-[11px] text-slate-400 dark:text-slate-500">
+              from: {group.fromQuery}
+            </div>
+          </div>
+        ))}
+      </div>
+      {plan.removeLabelIds.length > 0 && (
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Also removes: {plan.removeLabelIds.join(', ')}
+        </p>
+      )}
     </div>
   )
 }

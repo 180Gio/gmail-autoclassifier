@@ -107,6 +107,34 @@ export interface GmailFilter {
   ruleId: number | null
 }
 
+export interface FilterPlanOptions {
+  archive: boolean
+  markRead: boolean
+  neverSpam: boolean
+  applyToExisting: boolean
+}
+
+/** One Gmail filter that would be created by an apply. */
+export interface FilterPlanItem {
+  label: string
+  senders: string[]
+  fromQuery: string
+  /** An identical `from` filter already exists in Gmail. */
+  alreadyExists: boolean
+  /** Senders already matched by some existing Gmail filter. */
+  coveredSenders: string[]
+}
+
+export interface FilterPlan {
+  groups: FilterPlanItem[]
+  totalSenders: number
+  totalFilters: number
+  /** Distinct senders already covered by existing Gmail filters. */
+  coveredSenders: number
+  removeLabelIds: string[]
+  options: FilterPlanOptions
+}
+
 export type SettingType = 'string' | 'secret' | 'number' | 'boolean' | 'select'
 
 export interface SettingDefinition {

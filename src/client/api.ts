@@ -1,6 +1,7 @@
 import type {
   Classification,
   ClassificationStatus,
+  FilterPlan,
   GmailFilter,
   Label,
   Rule,
@@ -85,6 +86,15 @@ export const Api = {
       `/api/scans/${scanId}/apply`,
       { method: 'POST', body: JSON.stringify(options) },
     ),
+
+  plan: (
+    scanId: number,
+    options: { archive: boolean; markRead: boolean; neverSpam: boolean; applyToExisting: boolean },
+  ) =>
+    request<{ plan: FilterPlan }>(`/api/scans/${scanId}/plan`, {
+      method: 'POST',
+      body: JSON.stringify(options),
+    }),
 
   rules: () => request<{ rules: Rule[] }>('/api/rules'),
   deleteRule: (id: number) =>

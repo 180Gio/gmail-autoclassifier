@@ -9,7 +9,7 @@ import {
   updateClassification,
 } from '../classifications.ts'
 import { HttpError, requireAccount } from '../http.ts'
-import { applyRules, listRules, type ApplyOptions } from '../gmail/apply.ts'
+import { applyRules, listRules, planApply, type ApplyOptions } from '../gmail/apply.ts'
 import { listLabels } from '../gmail/labels.ts'
 import { getScan, getSenders, listScans, startScan, cancelScan } from '../gmail/scan.ts'
 import { getAiProviderId, getBool, getSetting } from '../settings.ts'
@@ -115,6 +115,18 @@ scansRouter.post('/scans/:id/mark', (req, res) => {
   res.json({ classifications: listClassifications(scan.id) })
 })
 
+scansRouter.post('/scans/:id/plan', async (req, res) => {
+  const account = requireAccount()
+  const scan = requireScan(Number(req.params.id), account.id)
+  const mappings = getAcceptedMappings(scan.id)
+  if (mappings.length === 0) {
+    throw new HttpError(400, 'No accepted senders to preview. Accept or edit some suggestions first.')
+  }
+  const body = (req.body ?? {}) as Partial<ApplyOptions>
+  const plan = await planApply(account.id, mappings, readApplyOptions(body))
+  res.json({ plan })
+})
+
 scansRouter.post('/scans/:id/apply', async (req, res) => {
   const account = requireAccount()
   const scan = requireScan(Number(req.params.id), account.id)
@@ -125,16 +137,19 @@ scansRouter.post('/scans/:id/apply', async (req, res) => {
     throw new HttpError(400, 'No accepted senders to apply. Accept or edit some suggestions first.')
   }
 
-  const options: ApplyOptions = {
+  const options = readApplyOptions(body)
+  const result = await applyRules(account.id, mappings, options)
+  res.json({ result, rules: listRules(account.id) })
+})
+
+function readApplyOptions(body: Partial<ApplyOptions>): ApplyOptions {
+  return {
     archive: body.archive ?? getBool('filters.archive'),
     markRead: body.markRead ?? getBool('filters.markRead'),
     neverSpam: body.neverSpam ?? getBool('filters.neverSpam'),
     applyToExisting: body.applyToExisting ?? getBool('filters.applyToExisting'),
   }
-
-  const result = await applyRules(account.id, mappings, options)
-  res.json({ result, rules: listRules(account.id) })
-})
+}
 
 function currentModelName(): string {
   const id = getAiProviderId()
