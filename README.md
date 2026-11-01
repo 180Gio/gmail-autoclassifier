@@ -164,9 +164,11 @@ variable. `.env` only provides defaults/fallbacks.
 | Apply to existing mail | `FILTERS_APPLY_EXISTING` | `false` | backfill |
 | Max senders per filter | `FILTERS_MAX_SENDERS` | `50` | one filter per label, `from: a OR b OR …` |
 
-Server-level variables (not exposed in the UI): `PORT`, `WEB_ORIGIN`,
-`DATA_DIR`, `SESSION_SECRET`. Set `SESSION_SECRET` to a long random string —
-it encrypts secrets at rest. Changing it invalidates stored secrets.
+Server-level variables (not exposed in the UI): `PORT`, `HOST`, `WEB_ORIGIN`,
+`DATA_DIR`, `SESSION_SECRET`. The API binds to `127.0.0.1` by default so other
+devices on your network cannot reach it; set `HOST=0.0.0.0` only if you really
+want that. Set `SESSION_SECRET` to a long random string — it encrypts secrets at
+rest. Changing it invalidates stored secrets.
 
 ## Using the app
 

@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import express from 'express'
 import { getDb } from './db.ts'
-import { IS_PROD, PORT, WEB_ORIGIN } from './env.ts'
+import { IS_PROD, HOST, PORT, WEB_ORIGIN } from './env.ts'
 import { errorHandler, notFound } from './http.ts'
 import { authRouter } from './routes/auth.ts'
 import { labelsRouter } from './routes/labels.ts'
@@ -50,9 +50,9 @@ app.use(errorHandler)
 
 getDb()
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, HOST, () => {
   const mode = IS_PROD ? 'production' : 'development'
-  console.log(`Gmail AutoClassifier API listening on http://localhost:${PORT} (${mode})`)
+  console.log(`Gmail AutoClassifier API listening on http://${HOST}:${PORT} (${mode})`)
 })
 
 server.on('error', (error: NodeJS.ErrnoException) => {
