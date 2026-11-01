@@ -364,6 +364,8 @@ src/
 | `npm run dev:api` | API only (`tsx watch`) |
 | `npm run dev:web` | Vite only |
 | `npm run build` | Build the client into `dist/client` |
+| `npm test` | Run the unit tests (Vitest) |
+| `npm run test:watch` | Run tests in watch mode |
 | `npm start` | Start the API (serves `dist/client` if built) |
 | `npm run typecheck` | Type-check the whole project |
 

@@ -184,6 +184,16 @@ function safeParse(
  * Pull an array of classification items out of a model response. Accepts a bare
  * JSON array (possibly wrapped in markdown) or an object containing an array.
  */
+export function parseClassificationResponse(
+  text: string,
+  labels: ClassifyLabelInput[],
+  senders: ClassifySenderInput[],
+): SenderClassification[] | null {
+  const known = new Map(labels.map((l) => [l.name.toLowerCase(), l.name]))
+  const byEmail = new Map(senders.map((s) => [s.email, s]))
+  return safeParse(text, known, byEmail)
+}
+
 function extractItems(text: string): RawItem[] | null {
   const array = tryParse<RawItem[]>(text, '[', ']')
   if (Array.isArray(array)) return array

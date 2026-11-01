@@ -79,6 +79,41 @@ export function listRules(accountId: number): Rule[] {
   )
 }
 
+export interface FilterPlanGroup {
+  label: string
+  senders: string[]
+  fromQuery: string
+}
+
+/**
+ * Group accepted senders by label and split each label into chunks.
+ * Pure function so it can be unit-tested and reused by a dry-run preview.
+ */
+export function planFilters(
+  mappings: AcceptedMapping[],
+  maxSendersPerFilter: number,
+): FilterPlanGroup[] {
+  const maxPerFilter = Math.max(1, Math.floor(maxSendersPerFilter) || 50)
+  const byLabel = new Map<string, string[]>()
+  for (const mapping of mappings) {
+    for (const label of mapping.labels) {
+      const list = byLabel.get(label) ?? []
+      list.push(mapping.senderEmail)
+      byLabel.set(label, list)
+    }
+  }
+
+  const groups: FilterPlanGroup[] = []
+  for (const [label, sendersRaw] of byLabel) {
+    const senders = [...new Set(sendersRaw)]
+    for (let i = 0; i < senders.length; i += maxPerFilter) {
+      const chunk = senders.slice(i, i + maxPerFilter)
+      groups.push({ label, senders: chunk, fromQuery: chunk.join(' OR ') })
+    }
+  }
+  return groups
+}
+
 /**
  * Create Gmail filters for the accepted senders.
  *
@@ -96,78 +131,70 @@ export async function applyRules(
 
   const result: ApplyResult = { rulesCreated: 0, messagesBackfilled: 0, errors: [] }
 
-  // label -> senders
-  const byLabel = new Map<string, string[]>()
-  for (const mapping of mappings) {
-    for (const label of mapping.labels) {
-      const list = byLabel.get(label) ?? []
-      list.push(mapping.senderEmail)
-      byLabel.set(label, list)
-    }
-  }
-  if (byLabel.size === 0) return result
+  const maxPerFilter = getNumber('filters.maxSendersPerFilter', 50)
+  const groups = planFilters(mappings, maxPerFilter)
+  if (groups.length === 0) return result
 
   const existingFrom = await loadExistingFrom(accountId)
-  const maxPerFilter = Math.max(1, Math.min(200, getNumber('filters.maxSendersPerFilter', 50)))
   const removeLabelIds = buildRemoveLabelIds(options)
+  const labelIds = new Map<string, string>()
 
-  for (const [label, sendersRaw] of byLabel) {
-    const senders = [...new Set(sendersRaw)]
+  async function resolveLabelId(label: string): Promise<string> {
+    const cached = labelIds.get(label)
+    if (cached) return cached
+    if (!getLabelByName(accountId, label)) createLocalLabel(accountId, label, '')
+    const id = await ensureGmailLabelId(accountId, gmail, label)
+    labelIds.set(label, id)
+    return id
+  }
+
+  for (const group of groups) {
+    const { label, senders, fromQuery } = group
     try {
-      if (!getLabelByName(accountId, label)) createLocalLabel(accountId, label, '')
-      const labelId = await ensureGmailLabelId(accountId, gmail, label)
+      const labelId = await resolveLabelId(label)
+      if (existingFrom.has(fromQuery)) continue
 
-      for (let i = 0; i < senders.length; i += maxPerFilter) {
-        const chunk = senders.slice(i, i + maxPerFilter)
-        const fromQuery = chunk.join(' OR ')
-        if (existingFrom.has(fromQuery)) continue
+      const filter = await withRetry(() =>
+        gmail.users.settings.filters.create({
+          userId: 'me',
+          requestBody: {
+            criteria: { from: fromQuery },
+            action: { addLabelIds: [labelId], removeLabelIds },
+          },
+        }),
+      )
 
-        try {
-          const filter = await withRetry(() =>
-            gmail.users.settings.filters.create({
-              userId: 'me',
-              requestBody: {
-                criteria: { from: fromQuery },
-                action: { addLabelIds: [labelId], removeLabelIds },
-              },
-            }),
-          )
+      const now = nowIso()
+      const { lastId } = run(
+        `INSERT INTO rules
+           (account_id, gmail_filter_id, label_names, query, actions, backfill, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
+        accountId,
+        filter.data.id ?? null,
+        JSON.stringify([label]),
+        fromQuery,
+        JSON.stringify({
+          archive: options.archive,
+          markRead: options.markRead,
+          neverSpam: options.neverSpam,
+        }),
+        options.applyToExisting ? 1 : 0,
+        now,
+        now,
+      )
+      existingFrom.add(fromQuery)
+      result.rulesCreated += 1
 
-          const now = nowIso()
-          const { lastId } = run(
-            `INSERT INTO rules
-               (account_id, gmail_filter_id, label_names, query, actions, backfill, status, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
-            accountId,
-            filter.data.id ?? null,
-            JSON.stringify([label]),
-            fromQuery,
-            JSON.stringify({
-              archive: options.archive,
-              markRead: options.markRead,
-              neverSpam: options.neverSpam,
-            }),
-            options.applyToExisting ? 1 : 0,
-            now,
-            now,
-          )
-          existingFrom.add(fromQuery)
-          result.rulesCreated += 1
-
-          if (options.applyToExisting) {
-            const count = await backfill(gmail, chunk, [labelId], removeLabelIds)
-            run('UPDATE rules SET backfill_count = ?, updated_at = ? WHERE id = ?', count, nowIso(), lastId)
-            result.messagesBackfilled += count
-          }
-        } catch (error) {
-          result.errors.push({
-            sender: `${label} (${chunk.length} senders)`,
-            message: errMsg(error),
-          })
-        }
+      if (options.applyToExisting) {
+        const count = await backfill(gmail, senders, [labelId], removeLabelIds)
+        run('UPDATE rules SET backfill_count = ?, updated_at = ? WHERE id = ?', count, nowIso(), lastId)
+        result.messagesBackfilled += count
       }
     } catch (error) {
-      result.errors.push({ sender: label, message: errMsg(error) })
+      result.errors.push({
+        sender: `${label} (${senders.length} senders)`,
+        message: errMsg(error),
+      })
     }
   }
 

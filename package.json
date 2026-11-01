@@ -11,7 +11,9 @@
     "dev:web": "vite",
     "start": "tsx src/server/index.ts",
     "build": "vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "dotenv": "^18.0.5",
@@ -32,6 +34,7 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.2",
+    "vitest": "^4.1.12",
     "wait-on": "^9.5.1"
   }
 }

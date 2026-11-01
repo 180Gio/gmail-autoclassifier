@@ -264,7 +264,7 @@ export function getSettingsView(): SettingView[] {
   })
 }
 
-function coerce(type: SettingType, value: string): string | null {
+export function coerceSettingValue(type: SettingType, value: string): string | null {
   switch (type) {
     case 'boolean':
       return value === 'true' || value === 'false' ? value : null
@@ -297,7 +297,7 @@ export function saveSettings(patch: Record<string, unknown>): void {
       continue
     }
     if (def.type === 'select' && def.options && !def.options.includes(String(raw))) continue
-    const value = coerce(def.type, String(raw))
+    const value = coerceSettingValue(def.type, String(raw))
     if (value === null) continue
     run(
       `INSERT INTO settings (key, value, is_secret, updated_at) VALUES (?, ?, 0, ?)
