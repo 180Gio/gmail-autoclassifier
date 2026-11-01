@@ -18,7 +18,7 @@ export function ReviewPanel({
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [options, setOptions] = useState(filterDefaults)
+  const [options, setOptions] = useState({ ...filterDefaults, includeCoveredSenders: false })
   const [applyResult, setApplyResult] = useState<string | null>(null)
   const [plan, setPlan] = useState<FilterPlan | null>(null)
   const [domainLabels, setDomainLabels] = useState<string[]>([])
@@ -286,6 +286,11 @@ export function ReviewPanel({
             checked={options.applyToExisting}
             onChange={(v) => updateOptions({ applyToExisting: v })}
           />
+          <Toggle
+            label="Include senders already covered by existing filters"
+            checked={options.includeCoveredSenders}
+            onChange={(v) => updateOptions({ includeCoveredSenders: v })}
+          />
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-3">
           {!plan && (
@@ -355,6 +360,7 @@ function PlanPreview({
                 {group.senders.length} senders
               </span>
               {group.alreadyExists && <Badge tone="amber">identical filter exists</Badge>}
+              {group.skipped && <Badge tone="red">skipped: all covered</Badge>}
               {group.coveredSenders.length > 0 && (
                 <Badge tone="amber">{group.coveredSenders.length} already covered</Badge>
               )}
@@ -371,7 +377,9 @@ function PlanPreview({
               </button>
             </div>
             <div className="mt-1 truncate font-mono text-[11px] text-slate-400 dark:text-slate-500">
-              from: {group.fromQuery}
+              {group.senders.length > 0
+                ? `from: ${group.fromQuery}`
+                : 'All senders are already covered; nothing to create.'}
             </div>
           </div>
         ))}

@@ -88,6 +88,7 @@ export const Api = {
       neverSpam: boolean
       applyToExisting: boolean
       domainLabels: string[]
+      includeCoveredSenders: boolean
     },
   ) =>
     request<{ result: { rulesCreated: number; messagesBackfilled: number; errors: Array<{ sender: string; message: string }> }; rules: Rule[] }>(
@@ -103,6 +104,7 @@ export const Api = {
       neverSpam: boolean
       applyToExisting: boolean
       domainLabels: string[]
+      includeCoveredSenders: boolean
     },
   ) =>
     request<{ plan: FilterPlan }>(`/api/scans/${scanId}/plan`, {

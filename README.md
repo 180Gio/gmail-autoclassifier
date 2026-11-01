@@ -193,6 +193,9 @@ rest. Changing it invalidates stored secrets.
 4. **Apply** — choose the filter actions and apply. The app creates missing
    labels, groups accepted senders by label and creates one Gmail filter per
    label (`from: a OR b OR …`), and (if enabled) backfills existing mail.
+   Senders already matched by an existing Gmail filter are **excluded by
+   default** (there is a toggle to include them), so applying does not create
+   overlapping filters.
 5. **Rules** — inspect every filter in Gmail (including ones created outside the
    app) and delete them if needed.
 6. **Analytics** — see volume, unread, top domains and the accepted-label

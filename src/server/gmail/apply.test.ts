@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseFilterSenders, planFilters, toDomain } from './apply.ts'
+import { parseFilterSenders, planFilters, resolvePlan, toDomain } from './apply.ts'
 
 const mappings = [
   { senderEmail: 'a@x.com', labels: ['Newsletters'] },
@@ -56,6 +56,57 @@ describe('toDomain', () => {
   it('extracts and lowercases the domain', () => {
     expect(toDomain('Someone@Sub.Example.com')).toBe('@sub.example.com')
     expect(toDomain('no-at-sign')).toBe('no-at-sign')
+  })
+})
+
+describe('resolvePlan', () => {
+  const groups = planFilters(
+    [
+      { senderEmail: 'a@x.com', labels: ['News'] },
+      { senderEmail: 'b@x.com', labels: ['News'] },
+    ],
+    50,
+  )
+
+  it('excludes senders already covered by existing filters', () => {
+    const planned = resolvePlan(
+      groups,
+      { fromSet: new Set(), senderSet: new Set(['a@x.com']) },
+      false,
+    )
+    expect(planned[0].senders).toEqual(['b@x.com'])
+    expect(planned[0].fromQuery).toBe('b@x.com')
+    expect(planned[0].coveredSenders).toEqual(['a@x.com'])
+    expect(planned[0].skipped).toBe(false)
+  })
+
+  it('skips a group when every sender is already covered', () => {
+    const planned = resolvePlan(
+      groups,
+      { fromSet: new Set(), senderSet: new Set(['a@x.com', 'b@x.com']) },
+      false,
+    )
+    expect(planned[0].senders).toEqual([])
+    expect(planned[0].skipped).toBe(true)
+  })
+
+  it('keeps covered senders when explicitly requested', () => {
+    const planned = resolvePlan(
+      groups,
+      { fromSet: new Set(), senderSet: new Set(['a@x.com']) },
+      true,
+    )
+    expect(planned[0].senders).toEqual(['a@x.com', 'b@x.com'])
+    expect(planned[0].skipped).toBe(false)
+  })
+
+  it('detects an identical existing filter on the effective query', () => {
+    const planned = resolvePlan(
+      groups,
+      { fromSet: new Set(['b@x.com']), senderSet: new Set(['a@x.com']) },
+      false,
+    )
+    expect(planned[0].alreadyExists).toBe(true)
   })
 })
 

@@ -149,6 +149,7 @@ function readApplyOptions(body: Partial<ApplyOptions>): ApplyOptions {
     neverSpam: body.neverSpam ?? getBool('filters.neverSpam'),
     applyToExisting: body.applyToExisting ?? getBool('filters.applyToExisting'),
     domainLabels: Array.isArray(body.domainLabels) ? body.domainLabels.map(String) : [],
+    includeCoveredSenders: Boolean(body.includeCoveredSenders),
   }
 }
 

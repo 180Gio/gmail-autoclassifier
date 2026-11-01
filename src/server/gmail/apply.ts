@@ -15,6 +15,8 @@ export interface ApplyOptions {
   applyToExisting: boolean
   /** Labels whose senders should be grouped by domain (`from:@domain`). */
   domainLabels: string[]
+  /** Keep senders that are already matched by an existing Gmail filter. */
+  includeCoveredSenders: boolean
 }
 
 export interface ApplyResult {
@@ -125,6 +127,39 @@ export function toDomain(email: string): string {
   return at >= 0 ? `@${email.slice(at + 1).toLowerCase()}` : email
 }
 
+export interface PlannedFilter extends FilterGroup {
+  coveredSenders: string[]
+  alreadyExists: boolean
+  skipped: boolean
+}
+
+/**
+ * Apply the coverage rules. By default, senders already matched by an existing
+ * Gmail filter are **excluded**, so applying cannot create overlapping filters.
+ * Set `includeCoveredSenders` to keep them.
+ */
+export function resolvePlan(
+  groups: FilterGroup[],
+  existing: ExistingFilters,
+  includeCoveredSenders: boolean,
+): PlannedFilter[] {
+  return groups.map((group) => {
+    const coveredSenders = group.senders.filter((s) => existing.senderSet.has(s.toLowerCase()))
+    const senders = includeCoveredSenders
+      ? group.senders
+      : group.senders.filter((s) => !existing.senderSet.has(s.toLowerCase()))
+    const fromQuery = senders.join(' OR ')
+    return {
+      label: group.label,
+      senders,
+      fromQuery,
+      coveredSenders,
+      alreadyExists: senders.length > 0 && existing.fromSet.has(fromQuery),
+      skipped: senders.length === 0,
+    }
+  })
+}
+
 /**
  * Create Gmail filters for the accepted senders.
  *
@@ -147,8 +182,10 @@ export async function applyRules(
   if (groups.length === 0) return result
 
   const existing = await loadExisting(accountId)
+  const planned = resolvePlan(groups, existing, options.includeCoveredSenders)
   const removeLabelIds = buildRemoveLabelIds(options)
   const labelIds = new Map<string, string>()
+  const createdFrom = new Set<string>()
 
   async function resolveLabelId(label: string): Promise<string> {
     const cached = labelIds.get(label)
@@ -159,11 +196,11 @@ export async function applyRules(
     return id
   }
 
-  for (const group of groups) {
+  for (const group of planned) {
+    if (group.skipped || group.alreadyExists || createdFrom.has(group.fromQuery)) continue
     const { label, senders, fromQuery } = group
     try {
       const labelId = await resolveLabelId(label)
-      if (existing.fromSet.has(fromQuery)) continue
 
       const filter = await withRetry(() =>
         gmail.users.settings.filters.create({
@@ -193,7 +230,7 @@ export async function applyRules(
         now,
         now,
       )
-      existing.fromSet.add(fromQuery)
+      createdFrom.add(fromQuery)
       result.rulesCreated += 1
 
       if (options.applyToExisting) {
@@ -224,23 +261,27 @@ export async function planApply(
   const maxPerFilter = getNumber('filters.maxSendersPerFilter', 50)
   const groups = planFilters(mappings, maxPerFilter, options.domainLabels)
   const existing = await loadExisting(accountId)
+  const planned = resolvePlan(groups, existing, options.includeCoveredSenders)
   const removeLabelIds = buildRemoveLabelIds(options)
 
   const covered = new Set<string>()
-  const items: FilterPlanItem[] = groups.map((group) => {
-    const coveredSenders = group.senders.filter((s) => existing.senderSet.has(s.toLowerCase()))
-    for (const sender of coveredSenders) covered.add(sender)
+  const items: FilterPlanItem[] = planned.map((group) => {
+    for (const sender of group.coveredSenders) covered.add(sender)
     return {
-      ...group,
-      alreadyExists: existing.fromSet.has(group.fromQuery),
-      coveredSenders,
+      label: group.label,
+      senders: group.senders,
+      fromQuery: group.fromQuery,
+      alreadyExists: group.alreadyExists,
+      coveredSenders: group.coveredSenders,
+      skipped: group.skipped,
     }
   })
 
+  const effective = items.filter((item) => !item.skipped && !item.alreadyExists)
   return {
     groups: items,
-    totalSenders: new Set(mappings.map((m) => m.senderEmail)).size,
-    totalFilters: items.length,
+    totalSenders: new Set(effective.flatMap((item) => item.senders)).size,
+    totalFilters: effective.length,
     coveredSenders: covered.size,
     removeLabelIds,
     options,

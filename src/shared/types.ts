@@ -114,6 +114,8 @@ export interface FilterPlanOptions {
   applyToExisting: boolean
   /** Labels whose senders should be grouped by domain (`from:@domain`). */
   domainLabels: string[]
+  /** Keep senders that are already matched by an existing Gmail filter. */
+  includeCoveredSenders: boolean
 }
 
 /** One Gmail filter that would be created by an apply. */
@@ -125,6 +127,8 @@ export interface FilterPlanItem {
   alreadyExists: boolean
   /** Senders already matched by some existing Gmail filter. */
   coveredSenders: string[]
+  /** All senders were already covered, so this filter will not be created. */
+  skipped: boolean
 }
 
 export interface FilterPlan {
